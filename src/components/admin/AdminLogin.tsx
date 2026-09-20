@@ -222,46 +222,48 @@ export default function AdminLogin({
           </div>
         )}
 
-        {!SUPABASE_ENABLED && (
-          <div className="mt-4 w-full border border-gold-500/20 bg-pine-800/30 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">
-              Mode Demo
-            </p>
+        {!SUPABASE_ENABLED ? (
+  <div className="mt-4 w-full border border-gold-500/20 bg-pine-800/30 p-4">
+    <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">
+      Mode Demo
+    </p>
 
-            <p className="mt-2 text-xs leading-relaxed text-sage-300/80">
-              Gunakan kredensial demo berikut:
-            </p>
+    <p className="mt-2 text-xs leading-relaxed text-sage-300/80">
+      Gunakan kredensial demo berikut:
+    </p>
 
-            <div className="mt-2 space-y-1 font-mono text-xs">
-              <p className="text-gold-200">
-                <span className="text-sage-300/60">
-                  Username:
-                </span>{" "}
-                superadmin
-              </p>
+    <div className="mt-2 space-y-1 font-mono text-xs">
+      <p className="text-gold-200">
+        <span className="text-sage-300/60">
+          Username:
+        </span>{" "}
+        superadmin
+      </p>
 
-              <p className="text-gold-200">
-                <span className="text-sage-300/60">
-                  Password:
-                </span>{" "}
-                demo123
-              </p>
-            </div>
+      <p className="text-gold-200">
+        <span className="text-sage-300/60">
+          Password:
+        </span>{" "}
+        demo123
+      </p>
+    </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                const confirmed = window.confirm(
-                  "Reset semua data demo? Ini akan menghapus semua akun admin dan data undangan yang tersimpan di browser."
-                );
+    <button
+      type="button"
+      onClick={() => {
+        const confirmed = window.confirm(
+          "Reset semua data demo? Ini akan menghapus semua akun admin dan data undangan yang tersimpan di browser."
+        );
 
-                if (confirmed) {
-                  resetDemoData();
-                }
-              }}
-              className="mt-3 w-full border border-rose-400/30 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-400 hover:text-pine-950"
-            >
+        if (confirmed) {
+          resetDemoData();
+        }
+      }}
+      className="mt-3 w-full border border-rose-400/30 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-400 hover:text-pine-950"
+    >
       Reset Data Demo
     </button>
   </div>
-) : null}
+    </div>
+  );
+}
