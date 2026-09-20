@@ -19,7 +19,12 @@ import TemplateWrapper from "./components/TemplateWrapper";
 import { onAuthStateChange, getAdminProfile, type AdminProfile } from "./lib/auth";
 import { SUPABASE_ENABLED } from "./lib/supabase";
 import { WeddingProvider } from "./lib/WeddingContext";
-import { parseInvitationSlug, getUserIdFromSlug, generateSlug } from "./lib/slug";
+import
+ { parseInvitationSlug, generateSlug } 
+from
+ 
+"./lib/slug"
+;
 
 type Stage = "closed" | "opening" | "open";
 
@@ -104,8 +109,7 @@ export default function App() {
   }, []);
 
   // Parse slug dari URL untuk undangan personal
-  const invitationSlug = parseInvitationSlug(route);
-  const slugUserId = invitationSlug ? getUserIdFromSlug(invitationSlug) : null;
+  <WeddingProvider key={publicUserId || "default"} userId={publicUserId}>
 
   // Undangan publik hanya menggunakan data dari slug URL
   // Status login admin TIDAK mempengaruhi undangan publik
