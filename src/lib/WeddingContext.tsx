@@ -25,8 +25,16 @@ interface WeddingContextType {
 
 const WeddingContext = createContext<WeddingContextType | null>(null);
 
-export function WeddingProvider({ children, userId }: { children: ReactNode; userId?: string | null }) {
-  const weddingData = useWeddingData(userId);
+export function WeddingProvider({
+  children,
+  userId,
+  slug,
+}: {
+  children: ReactNode;
+  userId?: string | null;
+  slug?: string | null;
+}) {
+  const weddingData = useWeddingData(userId, slug);
   const theme = getTheme(weddingData.data.themeId || "emerald-garden");
   const language = (weddingData.data.language || "id") as Language;
   const t = translations[language];
