@@ -41,7 +41,10 @@ export interface WeddingData {
  * - Jika tidak: pakai localStorage dengan key per-user.
  * - Setiap admin punya data undangan sendiri, tidak saling mempengaruhi.
  */
-export function useWeddingData(userId?: string | null) {
+export function useWeddingData(
+  userId?: string | null,
+  slug?: string | null
+) {
   const [data, setData] = useState<WeddingData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,31 +53,69 @@ export function useWeddingData(userId?: string | null) {
 
   // Fetch initial data
   const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (SUPABASE_ENABLED && userId) {
-        const { data: row, error: err } = await supabase
-          .from("settings")
-          .select("data")
-          .eq("user_id", userId)
-          .single();
-        if (err && err.code !== "PGRST116") throw err;
-        setData((row?.data as WeddingData) || {});
-      } else {
-        const raw = localStorage.getItem(storageKey);
-        setData(raw ? JSON.parse(raw) : {});
-      }
-    } catch (e: any) {
-      setError(e.message || "Gagal memuat data");
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  setError(null);
+
+  try {
+    if (SUPABASE_ENABLED && slug) {
+      const { data: row, error: err } = await supabase
+        .from("settings")
+        .select("data")
+        .eq("slug", slug)
+        .maybeSingle();
+
+      if (err) throw err;
+
+      setData((row?.data as WeddingData) || {});
+    } else if (SUPABASE_ENABLED && userId) {
+      const { data: row, error: err } = await supabase
+        .from("settings")
+        .select("data")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (err) throw err;
+
+      setData((row?.data as WeddingData) || {});
+    } else {
+      const raw = localStorage.getItem(storageKey);
+      setData(raw ? JSON.parse(raw) : {});
     }
-  }, [userId, storageKey]);
+  } catch (e: any) {
+    setError(e.message || "Gagal memuat data");
+    setData({});
+  } finally {
+    setLoading(false);
+  }
+}, [userId, slug, storageKey]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  if (!SUPABASE_ENABLED || (!userId && !slug)) return;
+
+  const filter = slug
+    ? `slug=eq.${slug}`
+    : `user_id=eq.${userId}`;
+
+  const channel = supabase
+    .channel(`settings-changes-${slug || userId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "settings",
+        filter,
+      },
+      (payload) => {
+        setData((payload.new as any).data || {});
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [userId, slug]);
 
   // Subscribe real-time (jika Supabase aktif)
   useEffect(() => {
