@@ -201,30 +201,11 @@ const waLink = normalizedWA
                 superadmin
               </p>
 
-              <p className="text-gold-200">
-                <span className="text-sage-300/60">Password:</span>{" "}
-                demo123
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  confirm(
-                    "Reset semua data demo? Ini akan menghapus semua akun admin dan data undangan yang tersimpan di browser."
-                  )
-                ) {
-                  resetDemoData();
-                }
-              }}
-              className="mt-3 w-full border border-rose-400/30 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-400 hover:text-pine-950"
-            >
-              Reset Data Demo
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+              {showDemo && (
+  <>
+    <p className="text-gold-200">
+      <span className="text-sage-300/60">Password:</span> demo123
+    </p>
+    <button ...>Reset Data Demo</button>
+  </>
+)}
