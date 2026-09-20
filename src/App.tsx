@@ -16,107 +16,102 @@ import AdminPanel from "./components/admin/AdminPanel";
 import SuperAdminPanel from "./components/admin/SuperAdminPanel";
 import ThemeWrapper from "./components/ThemeWrapper";
 import TemplateWrapper from "./components/TemplateWrapper";
-import { onAuthStateChange, getAdminProfile, type AdminProfile } from "./lib/auth";
-import { SUPABASE_ENABLED } from "./lib/supabase";
+import {
+  getAdminProfile,
+  onAuthStateChange,
+  type AdminProfile,
+} from "./lib/auth";
 import { WeddingProvider } from "./lib/WeddingContext";
-import
- { parseInvitationSlug, generateSlug } 
-from
- 
-"./lib/slug"
-;
+import {
+  generateSlug,
+  getUserIdFromSlug,
+  parseInvitationSlug,
+} from "./lib/slug";
 
 type Stage = "closed" | "opening" | "open";
+
+type AuthUser = {
+  id: string;
+  email?: string | null;
+  user_metadata?: { name?: string | null };
+  username?: string;
+  name?: string | null;
+};
 
 export default function App() {
   const [stage, setStage] = useState<Stage>("closed");
   const [route, setRoute] = useState(() => window.location.hash);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<AdminProfile | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Timeout untuk auth loading - pastikan tidak stuck selamanya
   useEffect(() => {
-    const timer = setTimeout(() => {
-      console.log("Auth loading timeout - forcing to false");
-      setAuthLoading(false);
-    }, 5000); // 5 detik timeout (lebih cepat)
-    return () => clearTimeout(timer);
-  }, []);
-  const [userName, setUserName] = useState<string | null>(null);
-
-  // Rute berbasis hash
-  useEffect(() => {
-    const onHash = () => setRoute(window.location.hash);
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    const onHashChange = () => setRoute(window.location.hash);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // Subscribe auth state
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setAuthLoading(false), 5000);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
-    
-    const unsub = onAuthStateChange((u) => {
+    const unsubscribe = onAuthStateChange((nextUser) => {
       if (!mounted) return;
-      
-      setUser(u);
-      
-      // Handle async operations
-      const loadProfile = async () => {
-        if (u) {
-          try {
-            console.log("Loading profile for user:", u.id);
-            const p = await getAdminProfile(u.id);
-            if (!mounted) return;
-            console.log("Profile loaded:", p);
-            setProfile(p);
-            
-            // Get username from profile name, or email, or user metadata
-            let displayName = p?.name || null;
-            if (!displayName) {
-              // Try to get from user metadata
-              displayName = u.user_metadata?.name || null;
-            }
-            if (!displayName && u.email) {
-              // Use email prefix as fallback
-              displayName = u.email.split('@')[0];
-            }
-            
-            setUserName(displayName);
-          } catch (error) {
-            console.error("Error loading profile:", error);
-            if (!mounted) return;
-            setProfile(null);
-            setUserName(null);
-          }
-        } else {
+
+      const authUser = nextUser as AuthUser | null;
+      setUser(authUser);
+
+      void (async () => {
+        if (!authUser) {
           if (!mounted) return;
           setProfile(null);
           setUserName(null);
-        }
-        if (mounted) {
           setAuthLoading(false);
+          return;
         }
-      };
-      
-      loadProfile();
+
+        try {
+          const nextProfile = await getAdminProfile(authUser.id);
+          if (!mounted) return;
+
+          setProfile(nextProfile);
+          setUserName(
+            nextProfile?.name ||
+              authUser.user_metadata?.name ||
+              authUser.email?.split("@")[0] ||
+              authUser.username ||
+              authUser.name ||
+              null
+          );
+        } catch (error) {
+          console.error("Error loading admin profile:", error);
+          if (!mounted) return;
+          setProfile(null);
+          setUserName(null);
+        } finally {
+          if (mounted) setAuthLoading(false);
+        }
+      })();
     });
-    
+
     return () => {
       mounted = false;
-      if (typeof unsub === "function") unsub();
+      unsubscribe();
     };
   }, []);
 
-  // Parse slug dari URL untuk undangan personal
-  <WeddingProvider key={publicUserId || "default"} userId={publicUserId}>
+  const invitationSlug = parseInvitationSlug(route);
+  const publicUserId = invitationSlug
+    ? getUserIdFromSlug(invitationSlug)
+    : null;
+  const isAdminRoute = route === "#/admin" || route.startsWith("#/admin/");
+  const isSuperRoute = route === "#/admin/super";
+  const isGuestRoute = route === "#/tamu" || route.startsWith("#/tamu?");
 
-  // Undangan publik hanya menggunakan data dari slug URL
-  // Status login admin TIDAK mempengaruhi undangan publik
-  // Jika tidak ada slug → tampilkan data default (Raka & Sekar)
-  const publicUserId = slugUserId || null;
-
-  // Redirect ke admin setelah login jika diperlukan
   useEffect(() => {
     if (user && sessionStorage.getItem("redirect-to-admin") === "true") {
       sessionStorage.removeItem("redirect-to-admin");
@@ -124,12 +119,12 @@ export default function App() {
     }
   }, [user]);
 
-  const isAdminRoute = route.startsWith("#/admin");
-  const isSuperRoute = route.startsWith("#/admin/super");
-  const isGuestRoute = route.startsWith("#/tamu");
-
   useEffect(() => {
-    document.body.style.overflow = stage === "open" || isAdminRoute || isGuestRoute ? "" : "hidden";
+    document.body.style.overflow =
+      stage === "open" || isAdminRoute || isGuestRoute ? "" : "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [stage, isAdminRoute, isGuestRoute]);
 
   useEffect(() => {
@@ -144,9 +139,7 @@ export default function App() {
     window.setTimeout(() => setStage("open"), 1250);
   };
 
-  // Route: Tamu manager
   if (isGuestRoute) {
-    // Halaman tamu hanya bisa diakses oleh admin yang login
     if (authLoading) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-pine-950">
@@ -154,45 +147,43 @@ export default function App() {
         </div>
       );
     }
-    
-    if (!user) {
-      // Redirect ke halaman login
-      return <AdminLogin onLogin={() => {}} />;
-    }
-    
-    // Generate slug dari data admin yang login
-    let invitationSlug = "";
+
+    if (!user) return <AdminLogin />;
+
+    let guestSlug = "";
     if (profile?.user_id) {
       try {
-        const storageKey = `wedding-data-${profile.user_id}`;
-        const rawData = localStorage.getItem(storageKey);
+        const rawData = localStorage.getItem(`wedding-data-${profile.user_id}`);
         if (rawData) {
-          const savedData = JSON.parse(rawData);
-          const groomName = savedData.groom?.short || "Mempelai";
-          const brideName = savedData.bride?.short || "Mempelai";
-          invitationSlug = generateSlug(groomName, brideName);
+          const savedData = JSON.parse(rawData) as {
+            groom?: { short?: string };
+            bride?: { short?: string };
+          };
+          guestSlug = generateSlug(
+            savedData.groom?.short || "Mempelai",
+            savedData.bride?.short || "Mempelai"
+          );
         }
-      } catch (e) {
-        // ignore
+      } catch (error) {
+        console.error("Gagal membaca data undangan:", error);
       }
     }
-    
+
     return (
       <WeddingProvider userId={user.id}>
-        <GuestManager invitationSlug={invitationSlug} />
+        <GuestManager invitationSlug={guestSlug} />
       </WeddingProvider>
     );
   }
 
-  // Route: Admin
   if (isAdminRoute) {
-    // Jika masih loading, tampilkan loading screen dengan timeout
     if (authLoading) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-pine-950 px-5 text-center">
           <div className="size-12 animate-spin rounded-full border-2 border-gold-400 border-t-transparent" />
           <p className="text-sm text-sage-300/80">Memuat...</p>
           <button
+            type="button"
             onClick={() => {
               setAuthLoading(false);
               setUser(null);
@@ -205,25 +196,7 @@ export default function App() {
       );
     }
 
-    // Jika belum login, tampilkan form login
-    if (!user) {
-      try {
-        return <AdminLogin onLogin={() => {}} />;
-      } catch (err) {
-        console.error("Error rendering AdminLogin:", err);
-        return (
-          <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-pine-950 px-5 text-center">
-            <p className="text-sm text-rose-300">Error loading login page</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="text-xs text-gold-400 underline hover:text-gold-300"
-            >
-              Reload
-            </button>
-          </div>
-        );
-      }
-    }
+    if (!user) return <AdminLogin />;
 
     if (!profile) {
       return (
@@ -233,6 +206,7 @@ export default function App() {
             Anda tidak terdaftar sebagai admin.
           </p>
           <button
+            type="button"
             onClick={() => {
               window.location.hash = "#/";
               window.location.reload();
@@ -262,22 +236,17 @@ export default function App() {
       );
     }
 
-    if (isSuperRoute) {
-      return (
-        <WeddingProvider userId={user?.id}>
-          <SuperAdminPanel profile={profile} userName={userName} />
-        </WeddingProvider>
-      );
-    }
-
     return (
-      <WeddingProvider userId={user?.id}>
-        <AdminPanel profile={profile} userName={userName} />
+      <WeddingProvider userId={user.id}>
+        {isSuperRoute ? (
+          <SuperAdminPanel profile={profile} userName={userName} />
+        ) : (
+          <AdminPanel profile={profile} userName={userName} />
+        )}
       </WeddingProvider>
     );
   }
 
-  // Route: Undangan publik
   return (
     <WeddingProvider key={publicUserId || "default"} userId={publicUserId}>
       <ThemeWrapper>
@@ -287,13 +256,14 @@ export default function App() {
             className="pointer-events-none fixed inset-0 z-0"
             style={{
               background:
-                "radial-gradient(55% 40% at 85% -5%, rgba(200,169,97,0.09), transparent 65%), radial-gradient(60% 45% at -10% 35%, rgba(32,71,52,0.5), transparent 60%), radial-gradient(70% 50% at 110% 80%, rgba(24,56,41,0.55), transparent 65%)",
+                "radial-gradient(55% 40% at 85% -5%, rgba(200,169,97,0.09), transparent 65%), radial-gradient(60% 45% at -10% 35%, rgba(32,71,52,0.5), transparent 60%), radial-gradient(70% 50% at 50% 110%, rgba(200,169,97,0.05), transparent 70%)",
             }}
           />
 
           <Petals />
-
-          {stage !== "open" && <Cover opening={stage === "opening"} onOpen={open} />}
+          {stage !== "open" && (
+            <Cover opening={stage === "opening"} onOpen={open} />
+          )}
 
           <main
             className={`relative z-10 transition-opacity duration-1000 ${
