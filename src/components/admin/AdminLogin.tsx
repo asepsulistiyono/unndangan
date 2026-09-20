@@ -261,11 +261,7 @@ export default function AdminLogin({
               }}
               className="mt-3 w-full border border-rose-400/30 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-400 hover:text-pine-950"
             >
-              Reset Data Demo
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+      Reset Data Demo
+    </button>
+  </div>
+) : null}
