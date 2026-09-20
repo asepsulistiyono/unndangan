@@ -10,9 +10,7 @@ interface AdminLoginProps {
   onLogin?: () => void;
 }
 
-export default function AdminLogin({
-  onLogin: _onLogin,
-}: AdminLoginProps) {
+export default function AdminLogin({ onLogin: _onLogin }: AdminLoginProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -98,10 +96,7 @@ export default function AdminLogin({
           Masuk untuk mengelola undangan
         </p>
 
-        <form
-          onSubmit={handleSubmit}
-          className="mt-10 w-full space-y-5"
-        >
+        <form onSubmit={handleSubmit} className="mt-10 w-full space-y-5">
           <div>
             <label
               htmlFor="username"
@@ -147,9 +142,7 @@ export default function AdminLogin({
                 onClick={() => setShowPassword((current) => !current)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-sage-300/60 transition-colors hover:text-gold-400"
                 aria-label={
-                  showPassword
-                    ? "Sembunyikan password"
-                    : "Tampilkan password"
+                  showPassword ? "Sembunyikan password" : "Tampilkan password"
                 }
               >
                 {showPassword ? (
@@ -170,7 +163,7 @@ export default function AdminLogin({
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2.5 bg-gold-500 px-6 py-4 text-xs font-extrabold uppercase tracking-[0.25em] text-pine-950 shadow-[0_10px_30px_rgba(200,169,97,0.25)] transition-colors hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2.5 bg-gold-500 px-6 py-4 text-xs font-extrabold uppercase tracking-[0.25em] text-pine-950 shadow-[0_10px_30px_rgba(200,169,97,0.2)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <span className="flex items-center gap-2">
@@ -228,13 +221,11 @@ export default function AdminLogin({
 
             <div className="mt-2 space-y-1 font-mono text-xs">
               <p className="text-gold-200">
-                <span className="text-sage-300/60">Username:</span>{" "}
-                superadmin
+                <span className="text-sage-300/60">Username:</span> superadmin
               </p>
 
               <p className="text-gold-200">
-                <span className="text-sage-300/60">Password:</span>{" "}
-                demo123
+                <span className="text-sage-300/60">Password:</span> demo123
               </p>
             </div>
 
