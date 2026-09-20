@@ -24,16 +24,10 @@ export default function AdminLogin({
     const loadAdminWA = async () => {
       try {
         const wa = await getAdminWA();
-
-        if (active) {
-          setAdminWA(typeof wa === "string" ? wa : "");
-        }
+        if (active) setAdminWA(typeof wa === "string" ? wa : "");
       } catch (error) {
         console.error("Gagal memuat nomor WhatsApp admin:", error);
-
-        if (active) {
-          setAdminWA("");
-        }
+        if (active) setAdminWA("");
       }
     };
 
@@ -46,7 +40,6 @@ export default function AdminLogin({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
     if (loading) return;
 
     setLoading(true);
@@ -54,20 +47,15 @@ export default function AdminLogin({
 
     try {
       await signIn(username.trim(), password);
-
       sessionStorage.setItem("redirect-to-admin", "true");
       window.location.reload();
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Login gagal";
-
-      setError(message);
+      setError(error instanceof Error ? error.message : "Login gagal");
       setLoading(false);
     }
   };
 
   const normalizedWA = adminWA.replace(/\D/g, "");
-
   const waLink = normalizedWA
     ? `https://wa.me/${normalizedWA}?text=${encodeURIComponent(
         "Halo admin, saya ingin minta dibuatkan akun untuk mengelola undangan pernikahan."
@@ -91,15 +79,11 @@ export default function AdminLogin({
         <h1 className="mt-6 font-display text-3xl font-light italic text-ivory">
           Panel Admin
         </h1>
-
         <p className="mt-2 text-sm text-sage-300/80">
           Masuk untuk mengelola undangan
         </p>
 
-        <form
-          onSubmit={handleSubmit}
-          className="mt-10 w-full space-y-5"
-        >
+        <form onSubmit={handleSubmit} className="mt-10 w-full space-y-5">
           <div>
             <label
               htmlFor="username"
@@ -107,7 +91,6 @@ export default function AdminLogin({
             >
               Username
             </label>
-
             <input
               id="username"
               type="text"
@@ -115,8 +98,8 @@ export default function AdminLogin({
               onChange={(event) => setUsername(event.target.value)}
               required
               autoComplete="username"
-              className="mt-2.5 w-full rounded-[3px] border border-gold-500/25 bg-pine-900/80 px-4 py-3 text-sm text-ivory placeholder:text-sage-300/40 transition-colors focus:border-gold-400 focus:outline-none"
               placeholder="Masukkan username"
+              className="mt-2.5 w-full rounded-[3px] border border-gold-500/25 bg-pine-900/80 px-4 py-3 text-sm text-ivory placeholder:text-sage-300/40 transition-colors focus:border-gold-400 focus:outline-none"
             />
           </div>
 
@@ -127,7 +110,6 @@ export default function AdminLogin({
             >
               Password
             </label>
-
             <div className="relative mt-2.5">
               <input
                 id="password"
@@ -136,25 +118,16 @@ export default function AdminLogin({
                 onChange={(event) => setPassword(event.target.value)}
                 required
                 autoComplete="current-password"
-                className="w-full rounded-[3px] border border-gold-500/25 bg-pine-900/80 px-4 py-3 pr-12 text-sm text-ivory placeholder:text-sage-300/40 transition-colors focus:border-gold-400 focus:outline-none"
                 placeholder="Masukkan password"
+                className="w-full rounded-[3px] border border-gold-500/25 bg-pine-900/80 px-4 py-3 pr-12 text-sm text-ivory placeholder:text-sage-300/40 transition-colors focus:border-gold-400 focus:outline-none"
               />
-
               <button
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-sage-300/60 transition-colors hover:text-gold-400"
-                aria-label={
-                  showPassword
-                    ? "Sembunyikan password"
-                    : "Tampilkan password"
-                }
+                aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
               >
-                {showPassword ? (
-                  <IconEyeOff className="size-5" />
-                ) : (
-                  <IconEye className="size-5" />
-                )}
+                {showPassword ? <IconEyeOff className="size-5" /> : <IconEye className="size-5" />}
               </button>
             </div>
           </div>
@@ -168,7 +141,7 @@ export default function AdminLogin({
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2.5 bg-gold-500 px-6 py-4 text-xs font-extrabold uppercase tracking-[0.25em] text-pine-950 shadow-[0_10px_30px_rgba(200,169,97,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2.5 bg-gold-500 px-6 py-4 text-xs font-extrabold uppercase tracking-[0.25em] text-pine-950 shadow-[0_10px_30px_rgba(200,169,97,0.25)] transition-colors hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <span className="flex items-center gap-2">
@@ -197,73 +170,48 @@ export default function AdminLogin({
             <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">
               Belum Punya Akun?
             </p>
-
             <p className="mt-2 text-xs leading-relaxed text-sage-300/80">
               Hubungi admin melalui WhatsApp untuk meminta dibuatkan akun:
             </p>
-
             <a
               href={waLink}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-3 inline-flex items-center gap-2 rounded-[3px] bg-emerald-500 px-5 py-2.5 text-xs font-bold text-white transition-all hover:bg-emerald-400"
             >
-              <svg
-                className="size-4"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.371.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-              </svg>
-
+              <span aria-hidden="true" className="text-base leading-none">●</span>
               Chat Admin via WhatsApp
             </a>
           </div>
         )}
 
-        {!SUPABASE_ENABLED ? (
-  <div className="mt-4 w-full border border-gold-500/20 bg-pine-800/30 p-4">
-    <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">
-      Mode Demo
-    </p>
-
-    <p className="mt-2 text-xs leading-relaxed text-sage-300/80">
-      Gunakan kredensial demo berikut:
-    </p>
-
-    <div className="mt-2 space-y-1 font-mono text-xs">
-      <p className="text-gold-200">
-        <span className="text-sage-300/60">
-          Username:
-        </span>{" "}
-        superadmin
-      </p>
-
-      <p className="text-gold-200">
-        <span className="text-sage-300/60">
-          Password:
-        </span>{" "}
-        demo123
-      </p>
-    </div>
-
-    <button
-      type="button"
-      onClick={() => {
-        const confirmed = window.confirm(
-          "Reset semua data demo? Ini akan menghapus semua akun admin dan data undangan yang tersimpan di browser."
-        );
-
-        if (confirmed) {
-          resetDemoData();
-        }
-      }}
-      className="mt-3 w-full border border-rose-400/30 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-400 hover:text-pine-950"
-    >
-      Reset Data Demo
-    </button>
-  </div>
+        {!SUPABASE_ENABLED && (
+          <div className="mt-4 w-full border border-gold-500/20 bg-pine-800/30 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">
+              Mode Demo
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-sage-300/80">
+              Gunakan kredensial demo berikut:
+            </p>
+            <div className="mt-2 space-y-1 font-mono text-xs">
+              <p className="text-gold-200"><span className="text-sage-300/60">Username:</span>{" "}superadmin</p>
+              <p className="text-gold-200"><span className="text-sage-300/60">Password:</span>{" "}demo123</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const confirmed = window.confirm(
+                  "Reset semua data demo? Ini akan menghapus semua akun admin dan data undangan yang tersimpan di browser."
+                );
+                if (confirmed) resetDemoData();
+              }}
+              className="mt-3 w-full border border-rose-400/30 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-400 hover:text-pine-950"
+            >
+              Reset Data Demo
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
