@@ -24,16 +24,10 @@ export default function AdminLogin({
     const loadAdminWA = async () => {
       try {
         const wa = await getAdminWA();
-
-        if (active) {
-          setAdminWA(typeof wa === "string" ? wa : "");
-        }
+        if (active) setAdminWA(typeof wa === "string" ? wa : "");
       } catch (error) {
         console.error("Gagal memuat nomor WhatsApp admin:", error);
-
-        if (active) {
-          setAdminWA("");
-        }
+        if (active) setAdminWA("");
       }
     };
 
@@ -46,7 +40,6 @@ export default function AdminLogin({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
     if (loading) return;
 
     setLoading(true);
@@ -54,20 +47,15 @@ export default function AdminLogin({
 
     try {
       await signIn(username.trim(), password);
-
       sessionStorage.setItem("redirect-to-admin", "true");
       window.location.reload();
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Login gagal";
-
-      setError(message);
+      setError(error instanceof Error ? error.message : "Login gagal");
       setLoading(false);
     }
   };
 
   const normalizedWA = adminWA.replace(/\D/g, "");
-
   const waLink = normalizedWA
     ? `https://wa.me/${normalizedWA}?text=${encodeURIComponent(
         "Halo admin, saya ingin minta dibuatkan akun untuk mengelola undangan pernikahan."
@@ -91,15 +79,11 @@ export default function AdminLogin({
         <h1 className="mt-6 font-display text-3xl font-light italic text-ivory">
           Panel Admin
         </h1>
-
         <p className="mt-2 text-sm text-sage-300/80">
           Masuk untuk mengelola undangan
         </p>
 
-        <form
-          onSubmit={handleSubmit}
-          className="mt-10 w-full space-y-5"
-        >
+        <form onSubmit={handleSubmit} className="mt-10 w-full space-y-5">
           <div>
             <label
               htmlFor="username"
@@ -107,7 +91,6 @@ export default function AdminLogin({
             >
               Username
             </label>
-
             <input
               id="username"
               type="text"
@@ -115,8 +98,8 @@ export default function AdminLogin({
               onChange={(event) => setUsername(event.target.value)}
               required
               autoComplete="username"
-              className="mt-2.5 w-full rounded-[3px] border border-gold-500/25 bg-pine-900/80 px-4 py-3 text-sm text-ivory placeholder:text-sage-300/40 transition-colors focus:border-gold-400 focus:outline-none"
               placeholder="Masukkan username"
+              className="mt-2.5 w-full rounded-[3px] border border-gold-500/25 bg-pine-900/80 px-4 py-3 text-sm text-ivory placeholder:text-sage-300/40 transition-colors focus:border-gold-400 focus:outline-none"
             />
           </div>
 
@@ -127,7 +110,6 @@ export default function AdminLogin({
             >
               Password
             </label>
-
             <div className="relative mt-2.5">
               <input
                 id="password"
@@ -136,25 +118,16 @@ export default function AdminLogin({
                 onChange={(event) => setPassword(event.target.value)}
                 required
                 autoComplete="current-password"
-                className="w-full rounded-[3px] border border-gold-500/25 bg-pine-900/80 px-4 py-3 pr-12 text-sm text-ivory placeholder:text-sage-300/40 transition-colors focus:border-gold-400 focus:outline-none"
                 placeholder="Masukkan password"
+                className="w-full rounded-[3px] border border-gold-500/25 bg-pine-900/80 px-4 py-3 pr-12 text-sm text-ivory placeholder:text-sage-300/40 transition-colors focus:border-gold-400 focus:outline-none"
               />
-
               <button
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-sage-300/60 transition-colors hover:text-gold-400"
-                aria-label={
-                  showPassword
-                    ? "Sembunyikan password"
-                    : "Tampilkan password"
-                }
+                aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
               >
-                {showPassword ? (
-                  <IconEyeOff className="size-5" />
-                ) : (
-                  <IconEye className="size-5" />
-                )}
+                {showPassword ? <IconEyeOff className="size-5" /> : <IconEye className="size-5" />}
               </button>
             </div>
           </div>
@@ -168,7 +141,7 @@ export default function AdminLogin({
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2.5 bg-gold-500 px-6 py-4 text-xs font-extrabold uppercase tracking-[0.25em] text-pine-950 shadow-[0_10px_30px_rgba(200,169,97,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2.5 bg-gold-500 px-6 py-4 text-xs font-extrabold uppercase tracking-[0.25em] text-pine-950 shadow-[0_10px_30px_rgba(200,169,97,0.25)] transition-colors hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <span className="flex items-center gap-2">
@@ -228,15 +201,13 @@ export default function AdminLogin({
       <p className="text-gold-200">
         <span className="text-sage-300/60">
           Username:
-        </span>{" "}
-        superadmin
+        </span>{" "}superadmin
       </p>
 
       <p className="text-gold-200">
         <span className="text-sage-300/60">
           Password:
-        </span>{" "}
-        demo123
+        </span>{" "}demo123
       </p>
     </div>
 
@@ -257,7 +228,6 @@ export default function AdminLogin({
     </button>
   </div>
 ) : null}
-</div>
     </div>
   );
 }
