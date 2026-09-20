@@ -8,9 +8,7 @@ interface AdminLoginProps {
   onLogin?: () => void;
 }
 
-export default function AdminLogin({
-  onLogin: _onLogin,
-}: AdminLoginProps) {
+export default function AdminLogin({ onLogin: _onLogin }: AdminLoginProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -75,20 +73,12 @@ export default function AdminLogin({
 
       <div className="relative mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-5 py-10">
         <Monogram className="size-20 text-gold-400" />
-
-        <h1 className="mt-6 font-display text-3xl font-light italic text-ivory">
-          Panel Admin
-        </h1>
-        <p className="mt-2 text-sm text-sage-300/80">
-          Masuk untuk mengelola undangan
-        </p>
+        <h1 className="mt-6 font-display text-3xl font-light italic text-ivory">Panel Admin</h1>
+        <p className="mt-2 text-sm text-sage-300/80">Masuk untuk mengelola undangan</p>
 
         <form onSubmit={handleSubmit} className="mt-10 w-full space-y-5">
           <div>
-            <label
-              htmlFor="username"
-              className="block text-[11px] font-bold uppercase tracking-[0.28em] text-gold-400"
-            >
+            <label htmlFor="username" className="block text-[11px] font-bold uppercase tracking-[0.28em] text-gold-400">
               Username
             </label>
             <input
@@ -104,10 +94,7 @@ export default function AdminLogin({
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="block text-[11px] font-bold uppercase tracking-[0.28em] text-gold-400"
-            >
+            <label htmlFor="password" className="block text-[11px] font-bold uppercase tracking-[0.28em] text-gold-400">
               Password
             </label>
             <div className="relative mt-2.5">
@@ -132,16 +119,12 @@ export default function AdminLogin({
             </div>
           </div>
 
-          {error && (
-            <div className="border-l-2 border-rose-400/70 bg-rose-400/10 px-4 py-3 text-sm text-rose-300">
-              {error}
-            </div>
-          )}
+          {error && <div className="border-l-2 border-rose-400/70 bg-rose-400/10 px-4 py-3 text-sm text-rose-300">{error}</div>}
 
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2.5 bg-gold-500 px-6 py-4 text-xs font-extrabold uppercase tracking-[0.25em] text-pine-950 shadow-[0_10px_30px_rgba(200,169,97,0.25)] transition-colors hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2.5 bg-gold-500 px-6 py-4 text-xs font-extrabold uppercase tracking-[0.25em] text-pine-950 shadow-[0_10px_30px_rgba(200,169,97,0.15)] transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <span className="flex items-center gap-2">
@@ -157,75 +140,48 @@ export default function AdminLogin({
           </button>
         </form>
 
-        <a
-          href="#/"
-          className="mt-8 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] text-gold-400 transition-colors hover:text-gold-200"
-        >
+        <a href="#/" className="mt-8 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] text-gold-400 transition-colors hover:text-gold-200">
           <IconArrowLeft className="size-4" />
           Kembali ke undangan
         </a>
 
-        {adminWA ? (
-  <div className="mt-8 w-full border border-gold-500/30 bg-pine-800/50 p-5">
-    <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">
-      Belum Punya Akun?
-    </p>
+        {adminWA && (
+          <div className="mt-8 w-full border border-gold-500/30 bg-pine-800/50 p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">Belum Punya Akun?</p>
+            <p className="mt-2 text-xs leading-relaxed text-sage-300/80">Hubungi admin melalui WhatsApp untuk meminta dibuatkan akun:</p>
+            <a href={waLink} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-[3px] bg-emerald-500 px-5 py-2.5 text-xs font-bold text-white transition-all hover:bg-emerald-400">
+              <span aria-hidden="true">💬</span>
+              Chat Admin via WhatsApp
+            </a>
+          </div>
+        )}
 
-    <p className="mt-2 text-xs leading-relaxed text-sage-300/80">
-      Hubungi admin melalui WhatsApp untuk meminta dibuatkan akun:
-    </p>
-
-    <a
-      href={waLink}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-3 inline-flex items-center gap-2 rounded-[3px] bg-emerald-500 px-5 py-2.5 text-xs font-bold text-white transition-all hover:bg-emerald-400"
-    >
-      <span aria-hidden="true">💬</span>
-      Chat Admin via WhatsApp
-    </a>
-  </div>
-) : null}
-
-        {!SUPABASE_ENABLED ? (
+{!SUPABASE_ENABLED && (
           <div className="mt-4 w-full border border-gold-500/20 bg-pine-800/30 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">
-              Mode Demo
-            </p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">Mode Demo</p>
 
-            <p className="mt-2 text-xs leading-relaxed text-sage-300/80">
-              Gunakan kredensial demo berikut:
-            </p>
+            <p className="mt-2 text-xs leading-relaxed text-sage-300/80">Gunakan kredensial demo berikut:</p>
 
             <div className="mt-2 space-y-1 font-mono text-xs">
-              <p className="text-gold-200">
-                <span className="text-sage-300/60">Username:</span>{" "}
-                superadmin
-              </p>
+              <p className="text-gold-200"><span className="text-sage-300/60">Username:</span>{" "}superadmin</p>
 
-              <p className="text-gold-200">
-                <span className="text-sage-300/60">Password:</span>{" "}
-                demo123
-              </p>
+              <p className="text-gold-200"><span className="text-sage-300/60">Password:</span>{" "}demo123</p>
             </div>
 
             <button
               type="button"
               onClick={() => {
-                const confirmed = window.confirm(
-                  "Reset semua data demo? Ini akan menghapus semua akun admin dan data undangan yang tersimpan di browser."
-                );
-
-                if (confirmed) {
+                if (window.confirm("Reset semua data demo? Ini akan menghapus semua akun admin dan data undangan yang tersimpan di browser.")) {
                   resetDemoData();
                 }
+
               }}
               className="mt-3 w-full border border-rose-400/30 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-400 hover:text-pine-950"
             >
               Reset Data Demo
             </button>
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
