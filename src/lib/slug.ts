@@ -1,105 +1,187 @@
 /**
- * Utility untuk slug URL undangan yang personal.
- * Contoh: "Putra" + "Putri" → "putra_dan_putri"
+ * Utility untuk slug URL undangan.
+ *
+ * Contoh:
+ * Raka + Sekar -> raka_dan_sekar
  */
 
 const LS_SLUGS = "wedding-slugs-v1";
 
 /**
- * Generate slug dari nama kedua mempelai.
- * - Lowercase
- * - Ganti spasi dengan underscore
- * - Hapus karakter non-alfanumerik (kecuali underscore)
- * - Format: {nama_pria}_dan_{nama_wanita}
+ * Membersihkan nama agar aman digunakan sebagai slug.
  */
-export function generateSlug(groomName: string, brideName: string): string {
-  const clean = (s: string) =>
-    s
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, "_")
-      .replace(/[^a-z0-9_]/g, "")
-      .replace(/_+/g, "_")
-      .replace(/^_|_$/g, "");
+function cleanSlugPart(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
 
-  const groom = clean(groomName) || "mempelai";
-  const bride = clean(brideName) || "mempelai";
+/**
+ * Membuat slug dari nama kedua mempelai.
+ *
+ * Contoh:
+ * generateSlug("Budi", "Wati")
+ * menghasilkan:
+ * budi_dan_wati
+ */
+export function generateSlug(
+  groomName: string,
+  brideName: string
+): string {
+  const groom =
+    cleanSlugPart(groomName) || "mempelai";
+
+  const bride =
+    cleanSlugPart(brideName) || "mempelai";
 
   return `${groom}_dan_${bride}`;
 }
 
 /**
- * Simpan mapping slug → userId di localStorage.
+ * Membersihkan slug dari karakter URL yang tidak diperlukan.
  */
-export function saveSlugMapping(slug: string, userId: string): void {
+export function normalizeSlug(slug: string): string {
+  return slug
+    .trim()
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/^#\/?/, "");
+}
+
+/**
+ * Menyimpan mapping slug ke user ID.
+ */
+export function saveSlugMapping(
+  slug: string,
+  userId: string
+): void {
   try {
     const raw = localStorage.getItem(LS_SLUGS);
-    const map: Record<string, string> = raw ? JSON.parse(raw) : {};
-    map[slug] = userId;
-    localStorage.setItem(LS_SLUGS, JSON.stringify(map));
+
+    const map: Record<string, string> = raw
+      ? JSON.parse(raw)
+      : {};
+
+    const cleanSlug = normalizeSlug(slug);
+
+    if (!cleanSlug || !userId) {
+      return;
+    }
+
+    map[cleanSlug] = userId;
+
+    localStorage.setItem(
+      LS_SLUGS,
+      JSON.stringify(map)
+    );
   } catch {
-    // ignore
+    // Abaikan error localStorage
   }
 }
 
 /**
- * Lookup userId dari slug.
+ * Mengambil user ID berdasarkan slug.
  */
-export function getUserIdFromSlug(slug: string): string | null {
+export function getUserIdFromSlug(
+  slug: string
+): string | null {
   try {
     const raw = localStorage.getItem(LS_SLUGS);
-    if (!raw) return null;
-    const map: Record<string, string> = JSON.parse(raw);
-    return map[slug] || null;
+
+    if (!raw) {
+      return null;
+    }
+
+    const map: Record<string, string> =
+      JSON.parse(raw);
+
+    const cleanSlug = normalizeSlug(slug);
+
+    return map[cleanSlug] || null;
   } catch {
     return null;
   }
 }
 
 /**
- * Hapus slug mapping (saat admin dihapus).
+ * Menghapus semua slug milik user tertentu.
  */
-export function removeSlugByUserId(userId: string): void {
+export function removeSlugByUserId(
+  userId: string
+): void {
   try {
     const raw = localStorage.getItem(LS_SLUGS);
-    if (!raw) return;
-    const map: Record<string, string> = JSON.parse(raw);
-    const newMap: Record<string, string> = {};
-    for (const [slug, uid] of Object.entries(map)) {
-      if (uid !== userId) newMap[slug] = uid;
+
+    if (!raw) {
+      return;
     }
-    localStorage.setItem(LS_SLUGS, JSON.stringify(newMap));
+
+    const map: Record<string, string> =
+      JSON.parse(raw);
+
+    const newMap: Record<string, string> = {};
+
+    for (const [slug, mappedUserId] of Object.entries(
+      map
+    )) {
+      if (mappedUserId !== userId) {
+        newMap[slug] = mappedUserId;
+      }
+    }
+
+    localStorage.setItem(
+      LS_SLUGS,
+      JSON.stringify(newMap)
+    );
   } catch {
-    // ignore
+    // Abaikan error localStorage
   }
 }
 
 /**
- * Cek apakah hash route adalah slug undangan (bukan admin/tamu).
- * Return slug jika ya, null jika bukan.
- * Mendukung format: /#/{slug} atau /#/{slug}/?to=NamaTamu
+ * Mengecek apakah hash merupakan route slug undangan.
+ *
+ * Mendukung:
+ * #/budi_dan_wati
+ * #/budi_dan_wati/?to=Pak%20Budi
  */
-export function parseInvitationSlug(hash: string): string | null {
-  // Hapus # dan / di awal
-  let path = hash.replace(/^#\/?/, "").trim();
-  
-  if (!path) return null;
-  
-  // Pisahkan path dan query parameter
+export function parseInvitationSlug(
+  hash: string
+): string | null {
+  let path = hash
+    .replace(/^#\/?/, "")
+    .trim();
+
+  if (!path) {
+    return null;
+  }
+
   const queryIndex = path.indexOf("?");
+
   if (queryIndex !== -1) {
     path = path.substring(0, queryIndex);
   }
-  
-  // Hapus trailing slash
-  path = path.replace(/\/$/, "");
-  
-  // Cek apakah ini route khusus
-  if (path === "admin" || path.startsWith("admin/") || path === "tamu") return null;
-  
-  // Valid slug: hanya huruf kecil, angka, dan underscore
-  if (/^[a-z0-9_]+$/.test(path) && path.includes("_dan_")) {
+
+  path = path.replace(/\/+$/, "");
+
+  if (
+    path === "admin" ||
+    path.startsWith("admin/") ||
+    path === "tamu" ||
+    path.startsWith("tamu/")
+  ) {
+    return null;
+  }
+
+  if (
+    /^[a-z0-9_]+$/.test(path) &&
+    path.includes("_dan_")
+  ) {
     return path;
   }
+
   return null;
 }
