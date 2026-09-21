@@ -13,13 +13,6 @@ export const LS_GUESTS =
 export const LS_TEMPLATE =
   "raka-sekar-template-v1";
 
-/**
- * Slug bawaan apabila pemanggil belum mengirim slug.
- *
- * Sebaiknya pada halaman Kelola Tamu tetap mengirim
- * slug secara eksplisit agar mengikuti data undangan
- * yang sedang aktif.
- */
 export const DEFAULT_INVITATION_SLUG =
   generateSlug(
     WEDDING.groom.short,
@@ -46,21 +39,40 @@ Wassalamu'alaikum Warahmatullahi Wabarakatuh.
 
 /* ---------- URL & tautan ---------- */
 
+function cleanInvitationSlug(
+  invitationSlug?: string
+): string {
+  const value = (
+    invitationSlug ||
+    DEFAULT_INVITATION_SLUG
+  )
+    .trim()
+    .replace(/^\/+|\/+$/g, "");
+
+  const normalized = normalizeSlug(value);
+
+  if (!normalized) {
+    throw new Error(
+      "Slug undangan belum tersedia."
+    );
+  }
+
+  return normalized;
+}
+
 /**
- * Mengambil URL dasar aplikasi tanpa pathname dan
- * tanpa trailing slash.
+ * Menghasilkan alamat dasar aplikasi.
  *
- * Benar:
+ * Contoh hasil:
  * https://unndangan.vercel.app
  *
- * Salah:
+ * Tidak menghasilkan:
  * https://unndangan.vercel.app/
+ * https://unndangan.vercel.app/#/
  * https://unndangan.vercel.app//#/
  */
 export function baseUrl(): string {
-  if (
-    typeof window === "undefined"
-  ) {
+  if (typeof window === "undefined") {
     return "";
   }
 
@@ -71,7 +83,7 @@ export function baseUrl(): string {
 }
 
 /**
- * Membuat link undangan umum.
+ * Link undangan utama.
  *
  * Contoh:
  * https://unndangan.vercel.app/#/budi_dan_wati
@@ -79,31 +91,17 @@ export function baseUrl(): string {
 export function invitationLink(
   invitationSlug?: string
 ): string {
-  const cleanSlug = normalizeSlug(
-    invitationSlug || DEFAULT_INVITATION_SLUG
-  );
-
-  return `${baseUrl()}/#/${cleanSlug}`;
-}
-
-  if (!cleanSlug) {
-    throw new Error(
-      "Slug undangan belum tersedia."
-    );
-  }
+  const cleanSlug =
+    cleanInvitationSlug(invitationSlug);
 
   return `${baseUrl()}/#/${cleanSlug}`;
 }
 
 /**
- * Membuat link undangan khusus tamu.
+ * Link undangan personal untuk tamu.
  *
  * Contoh:
- * https://unndangan.vercel.app/#/budi_dan_wati/?to=Pak%20Budi
- *
- * invitationSlug dibuat opsional agar kode lama
- * tetap bisa dikompilasi. Namun sebaiknya slug
- * selalu dikirim dari halaman Kelola Tamu.
+ * https://unndangan.vercel.app/#/budi_dan_wati/?to=Imam
  */
 export function guestLink(
   name: string,
@@ -111,22 +109,14 @@ export function guestLink(
 ): string {
   const cleanName = name.trim();
 
-  const cleanSlug = normalizeSlug(
-    invitationSlug ||
-      DEFAULT_INVITATION_SLUG
-  );
-
-  if (!cleanSlug) {
-    throw new Error(
-      "Slug undangan belum tersedia."
-    );
-  }
-
   if (!cleanName) {
     throw new Error(
       "Nama tamu belum tersedia."
     );
   }
+
+  const cleanSlug =
+    cleanInvitationSlug(invitationSlug);
 
   return `${baseUrl()}/#/${cleanSlug}/?to=${encodeURIComponent(
     cleanName
@@ -135,13 +125,6 @@ export function guestLink(
 
 /* ---------- nomor WhatsApp ---------- */
 
-/**
- * Mengubah:
- * 0812-3456-7890
- *
- * Menjadi:
- * 6281234567890
- */
 export function normalizePhone(
   raw: string
 ): string {
@@ -171,12 +154,6 @@ export function waShareLink(
 
 /* ---------- parser input massal ---------- */
 
-/**
- * Format yang didukung:
- *
- * Bapak H. Ahmad Fauzi
- * Ibu Siti Aminah | 081234567890
- */
 export function parseBulk(
   text: string
 ): {
@@ -197,7 +174,9 @@ export function parseBulk(
         phone: phone || "",
       };
     })
-    .filter((guest) => guest.name.length > 0);
+    .filter(
+      (guest) => guest.name.length > 0
+    );
 }
 
 /* ---------- template pesan ---------- */
@@ -255,7 +234,7 @@ export function saveGuests(
       JSON.stringify(guests)
     );
   } catch {
-    // Abaikan jika penyimpanan penuh
+    // Abaikan jika localStorage penuh
   }
 }
 
@@ -279,7 +258,7 @@ export function saveTemplate(
       template
     );
   } catch {
-    // Abaikan error localStorage
+    // Abaikan jika localStorage penuh
   }
 }
 
@@ -314,7 +293,7 @@ export function downloadFile(
 }
 
 const escCsv = (value: string): string =>
-  `"${value.split('"').join('""')}"`;
+  `"${value.replace(/"/g, '""')}"`;
 
 export function toCsv(
   guests: Guest[],
