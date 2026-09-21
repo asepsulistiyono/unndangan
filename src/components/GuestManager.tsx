@@ -1,195 +1,172 @@
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
-  type ChangeEvent,
-  type ReactNode,
 } from "react";
 
 import {
-  DEFAULT_TEMPLATE,
-  invitationLink,
   downloadFile,
   fillTemplate,
   guestLink,
-  loadGuests,
-  loadTemplate,
-  makeId,
-  normalizePhone,
   parseBulk,
-  saveGuests,
-  saveTemplate,
   toCsv,
   toLinksTxt,
-  waShareLink,
   type Guest,
+  waShareLink,
 } from "../lib/guests";
 
-import { copyText } from "./sections/Gift";
-import { Monogram, Petals } from "./Decor";
-
 import {
-  IconArrowLeft,
-  IconCheck,
-  IconChat,
-  IconCopy,
-  IconDownload,
-  IconLink,
-  IconPencil,
-  IconSearch,
-  IconTrash,
-  IconUpload,
-  IconUsers,
-} from "./Icons";
+  deleteAllGuests,
+  deleteGuest,
+  fetchGuestTemplate,
+  fetchGuests,
+  insertGuests,
+  saveGuestTemplate,
+  updateGuest,
+} from "../lib/guestService";
 
-const inputCls =
-  "w-full rounded-[3px] border border-gold-500/25 bg-pine-900/80 px-4 py-3 text-sm text-ivory placeholder:text-sage-300/40 transition-colors duration-300 focus:border-gold-400 focus:outline-none";
-
-const PAGE = 40;
-
-function RowBtn({
-  label,
-  onClick,
-  tone,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  tone: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      onClick={onClick}
-      className={`flex size-9 shrink-0 items-center justify-center rounded-full border transition-all duration-200 active:scale-90 ${tone}`}
-    >
-      {children}
-    </button>
-  );
-}
+type GuestManagerProps = {
+  invitationSlug?: string;
+};
 
 export default function GuestManager({
   invitationSlug,
-}: {
-  invitationSlug?: string;
-}) {
+}: GuestManagerProps) {
   const [guests, setGuests] = useState<Guest[]>(
-    loadGuests
+    [],
   );
 
-  const [query, setQuery] = useState("");
-  const [template, setTemplate] =
-    useState(loadTemplate);
   const [bulk, setBulk] = useState("");
-  const [toast, setToast] = useState("");
-  const [confirmClear, setConfirmClear] =
+  const [query, setQuery] = useState("");
+  const [template, setTemplate] = useState("");
+  const [templateLoaded, setTemplateLoaded] =
     useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const [editingId, setEditingId] =
     useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [editPhone, setEditPhone] =
-    useState("");
+  const [editPhone, setEditPhone] = useState("");
 
-  const [visible, setVisible] = useState(PAGE);
+  const [confirmClear, setConfirmClear] =
+    useState(false);
 
-  const fileRef =
-    useRef<HTMLInputElement | null>(null);
+  const [notice, setNotice] = useState("");
 
-  const toastTimer = useRef<
-    number | undefined
-  >(undefined);
+  function say(message: string) {
+    setNotice(message);
 
-  /**
-   * Membuat URL undangan utama.
-   *
-   * Jika invitationSlug tersedia:
-   * https://domain.com/#/budi_dan_wati
-   *
-   * Jika belum tersedia, invitationLink()
-   * menggunakan slug default dari guests.ts.
+    window.setTimeout(() => {
+      setNotice((current) =>
+        current === message ? "" : current,
+      );
+    }, 3500);
+  }
+
+  /*
+   * Memuat data dari Supabase.
+   * fetchGuests juga menangani migrasi data lama
+   * dari localStorage.
    */
-  const invitationUrl = invitationLink(
-    invitationSlug
-  );
-
   useEffect(() => {
-    saveGuests(guests);
-  }, [guests]);
+    let active = true;
 
-  useEffect(() => {
-    saveTemplate(template);
-  }, [template]);
+    async function loadRemoteData() {
+      try {
+        const [
+          remoteGuests,
+          remoteTemplate,
+        ] = await Promise.all([
+          fetchGuests(),
+          fetchGuestTemplate(),
+        ]);
 
-  useEffect(() => {
-    document.title =
-      "Kelola Tamu · Undangan Pernikahan";
+        if (!active) {
+          return;
+        }
 
-    window.scrollTo(0, 0);
-  }, []);
+        setGuests(remoteGuests);
+        setTemplate(remoteTemplate);
+        setTemplateLoaded(true);
+      } catch (error) {
+        console.error(
+          "Gagal memuat data tamu:",
+          error,
+        );
 
-  useEffect(() => {
+        if (active) {
+          say(
+            "Data tamu gagal dimuat. Pastikan Anda sudah login.",
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadRemoteData();
+
     return () => {
-      window.clearTimeout(toastTimer.current);
+      active = false;
     };
   }, []);
 
-  const say = (message: string) => {
-    setToast(message);
+  /*
+   * Menyimpan template ke Supabase dengan jeda 500ms
+   * agar tidak menyimpan pada setiap ketikan.
+   */
+  useEffect(() => {
+    if (!templateLoaded) {
+      return;
+    }
 
-    window.clearTimeout(toastTimer.current);
+    const timer = window.setTimeout(() => {
+      void saveGuestTemplate(template).catch(
+        (error) => {
+          console.error(
+            "Gagal menyimpan template:",
+            error,
+          );
 
-    toastTimer.current = window.setTimeout(() => {
-      setToast("");
-    }, 2600);
-  };
+          say("Template gagal disimpan");
+        },
+      );
+    }, 500);
 
-  const filtered = useMemo(() => {
-    const search = query.trim().toLowerCase();
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [template, templateLoaded]);
 
-    if (!search) {
+  const filteredGuests = useMemo(() => {
+    const normalizedQuery =
+      query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
       return guests;
     }
 
-    const phoneSearch =
-      query.replace(/\D/g, "") || "§";
-
-    return guests.filter(
-      (guest) =>
+    return guests.filter((guest) => {
+      return (
         guest.name
           .toLowerCase()
-          .includes(search) ||
-        guest.phone.includes(phoneSearch)
-    );
+          .includes(normalizedQuery) ||
+        guest.phone
+          .toLowerCase()
+          .includes(normalizedQuery)
+      );
+    });
   }, [guests, query]);
 
-  const shown = filtered.slice(0, visible);
-
-  const withPhone = useMemo(
-    () =>
-      guests.filter(
-        (guest) => guest.phone.trim().length > 0
-      ).length,
-    [guests]
-  );
-
-  const parsedCount = useMemo(
-    () => parseBulk(bulk).length,
-    [bulk]
-  );
-
-  /* ---------- aksi tamu ---------- */
-
-  const addBulk = () => {
+  async function addBulk() {
     const items = parseBulk(bulk);
 
     if (items.length === 0) {
       say(
-        "Tidak ada nama terbaca — satu nama per baris"
+        "Tidak ada nama yang terbaca. Gunakan satu tamu per baris.",
       );
       return;
     }
@@ -197,666 +174,419 @@ export default function GuestManager({
     const existing = new Set(
       guests.map(
         (guest) =>
-          `${guest.name}||${guest.phone}`
-      )
+          `${guest.name.trim().toLowerCase()}||${guest.phone.trim()}`,
+      ),
     );
 
-    const fresh = items
-      .filter(
-        (item) =>
-          !existing.has(
-            `${item.name}||${item.phone}`
-          )
-      )
-      .map((item) => ({
-        id: makeId(),
-        name: item.name,
-        phone: item.phone,
-      }));
+    const seen = new Set(existing);
 
-    setGuests((previous) => [
-      ...fresh,
-      ...previous,
-    ]);
+    const fresh = items.filter((item) => {
+      const key = `${item.name
+        .trim()
+        .toLowerCase()}||${item.phone.trim()}`;
 
-    setBulk("");
+      if (seen.has(key)) {
+        return false;
+      }
 
-    const duplicateCount =
-      items.length - fresh.length;
+      seen.add(key);
+      return true;
+    });
 
-    say(
-      duplicateCount > 0
-        ? `${fresh.length} tamu ditambahkan · ${duplicateCount} duplikat dilewati`
-        : `${fresh.length} tamu ditambahkan`
-    );
-  };
+    if (fresh.length === 0) {
+      say("Semua tamu sudah terdaftar.");
+      return;
+    }
 
-  const startEdit = (guest: Guest) => {
+    setSaving(true);
+
+    try {
+      const inserted = await insertGuests(fresh);
+
+      setGuests((previous) => [
+        ...inserted,
+        ...previous,
+      ]);
+
+      setBulk("");
+
+      const duplicateCount =
+        items.length - inserted.length;
+
+      if (duplicateCount > 0) {
+        say(
+          `${inserted.length} tamu ditambahkan. ${duplicateCount} duplikat dilewati.`,
+        );
+      } else {
+        say(
+          `${inserted.length} tamu berhasil ditambahkan.`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Gagal menambahkan tamu:",
+        error,
+      );
+
+      say("Tamu gagal disimpan ke server.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startEdit(guest: Guest) {
     setEditingId(guest.id);
     setEditName(guest.name);
     setEditPhone(guest.phone);
-  };
+  }
 
-  const saveEdit = () => {
-    if (!editName.trim() || !editingId) {
-      return;
-    }
-
-    setGuests((previous) =>
-      previous.map((guest) =>
-        guest.id === editingId
-          ? {
-              ...guest,
-              name: editName.trim(),
-              phone: editPhone.trim(),
-            }
-          : guest
-      )
-    );
-
+  function cancelEdit() {
     setEditingId(null);
     setEditName("");
     setEditPhone("");
+  }
 
-    say("Perubahan disimpan");
-  };
+  async function saveEdit() {
+    if (!editingId) {
+      return;
+    }
 
-  const removeGuest = (guest: Guest) => {
-    setGuests((previous) =>
-      previous.filter(
-        (item) => item.id !== guest.id
-      )
+    if (!editName.trim()) {
+      say("Nama tamu tidak boleh kosong.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const updated = await updateGuest({
+        id: editingId,
+        name: editName,
+        phone: editPhone,
+      });
+
+      setGuests((previous) =>
+        previous.map((guest) =>
+          guest.id === updated.id
+            ? updated
+            : guest,
+        ),
+      );
+
+      cancelEdit();
+      say("Perubahan tamu berhasil disimpan.");
+    } catch (error) {
+      console.error(
+        "Gagal mengubah tamu:",
+        error,
+      );
+
+      say("Perubahan gagal disimpan.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeGuest(guest: Guest) {
+    const confirmed = window.confirm(
+      `Hapus tamu "${guest.name}"?`,
     );
 
-    say(`${guest.name} dihapus`);
-  };
+    if (!confirmed) {
+      return;
+    }
 
-  /* ---------- link tamu ---------- */
+    try {
+      await deleteGuest(guest.id);
 
-  const copyLink = async (guest: Guest) => {
+      setGuests((previous) =>
+        previous.filter(
+          (item) => item.id !== guest.id,
+        ),
+      );
+
+      say(`${guest.name} berhasil dihapus.`);
+    } catch (error) {
+      console.error(
+        "Gagal menghapus tamu:",
+        error,
+      );
+
+      say("Tamu gagal dihapus.");
+    }
+  }
+
+  async function removeAllGuests() {
+    if (guests.length === 0) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      await deleteAllGuests();
+
+      setGuests([]);
+      setConfirmClear(false);
+      say("Semua tamu berhasil dihapus.");
+    } catch (error) {
+      console.error(
+        "Gagal menghapus semua tamu:",
+        error,
+      );
+
+      say("Semua tamu gagal dihapus.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function getGuestMessage(guest: Guest) {
     const link = guestLink(
       guest.name,
-      invitationSlug
+      invitationSlug,
     );
 
-    await copyText(link);
-
-    say(`Link untuk ${guest.name} tersalin`);
-  };
-
-  const shareWa = (guest: Guest) => {
-    const link = guestLink(
-      guest.name,
-      invitationSlug
-    );
-
-    const message = fillTemplate(
+    return fillTemplate(
       template,
       guest.name,
-      link
+      link,
     );
+  }
 
-    const whatsappUrl = waShareLink(
+  function sendWhatsApp(guest: Guest) {
+    const message = getGuestMessage(guest);
+    const url = waShareLink(
       guest.phone,
-      message
+      message,
     );
 
     window.open(
-      whatsappUrl,
+      url,
       "_blank",
-      "noopener,noreferrer"
+      "noopener,noreferrer",
     );
-  };
+  }
 
-  const copyAllLinks = async () => {
-    if (filtered.length === 0) {
+  function exportCsv() {
+    if (guests.length === 0) {
+      say("Belum ada data tamu untuk diekspor.");
       return;
     }
 
-    const links = filtered
-      .map((guest) =>
-        guestLink(
-          guest.name,
-          invitationSlug
-        )
-      )
-      .join("\n");
-
-    await copyText(links);
-
-    say(
-      `${filtered.length} link tersalin ke clipboard`
+    downloadFile(
+      "daftar-tamu.csv",
+      toCsv(guests, invitationSlug),
+      "text/csv",
     );
-  };
 
-  /* ---------- import JSON ---------- */
+    say("File CSV berhasil dibuat.");
+  }
 
-  const onImportFile = (
-    event: ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
+  function exportLinks() {
+    if (guests.length === 0) {
+      say("Belum ada data tamu untuk diekspor.");
       return;
     }
 
-    const reader = new FileReader();
+    downloadFile(
+      "link-undangan.txt",
+      toLinksTxt(guests, invitationSlug),
+      "text/plain",
+    );
 
-    reader.onload = () => {
-      try {
-        const parsed: unknown = JSON.parse(
-          String(reader.result)
-        );
+    say("File link undangan berhasil dibuat.");
+  }
 
-        if (!Array.isArray(parsed)) {
-          throw new Error("format salah");
-        }
+  function copyGuestLink(guest: Guest) {
+    const link = guestLink(
+      guest.name,
+      invitationSlug,
+    );
 
-        const items = parsed.filter(
-          (
-            item
-          ): item is {
-            name: string;
-            phone?: string;
-          } =>
-            Boolean(
-              item &&
-                typeof item === "object" &&
-                "name" in item &&
-                typeof item.name === "string" &&
-                item.name.trim().length > 0
-            )
-        );
-
-        const existing = new Set(
-          guests.map(
-            (guest) =>
-              `${guest.name}||${guest.phone}`
-          )
-        );
-
-        const fresh = items
-          .filter((item) => {
-            const phone = item.phone || "";
-
-            return !existing.has(
-              `${item.name}||${phone}`
-            );
-          })
-          .map((item) => ({
-            id: makeId(),
-            name: item.name.trim(),
-            phone: item.phone || "",
-          }));
-
-        setGuests((previous) => [
-          ...fresh,
-          ...previous,
-        ]);
-
-        say(
-          `${fresh.length} tamu dipulihkan dari cadangan`
-        );
-      } catch {
-        say("File cadangan tidak valid");
-      }
-
-      if (fileRef.current) {
-        fileRef.current.value = "";
-      }
-    };
-
-    reader.readAsText(file);
-  };
-
-  const previewGuest =
-    filtered[0] ?? guests[0];
-
-  const previewMsg = previewGuest
-    ? fillTemplate(
-        template,
-        previewGuest.name,
-        guestLink(
-          previewGuest.name,
-          invitationSlug
-        )
-      )
-    : fillTemplate(
-        template,
-        "Bapak/Ibu Contoh",
-        guestLink(
-          "Contoh",
-          invitationSlug
-        )
-      );
+    void navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        say("Link undangan berhasil disalin.");
+      })
+      .catch(() => {
+        say("Link gagal disalin.");
+      });
+  }
 
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-pine-950 font-sans text-ivory">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0"
-        style={{
-          background:
-            "radial-gradient(55% 40% at 85% -5%, rgba(200,169,97,0.09), transparent 65%), radial-gradient(60% 45% at -10% 35%, rgba(32,71,52,0.5), transparent 60%)",
-        }}
-      />
+    <section className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mb-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-500">
+          Guest Manager
+        </p>
 
-      <Petals count={8} />
+        <h1 className="mt-2 font-serif text-3xl font-semibold text-slate-100">
+          Daftar Tamu Undangan
+        </h1>
 
-      <div className="relative mx-auto max-w-5xl px-5 py-10 sm:px-8">
-        {/* Header */}
-        <header className="flex flex-wrap items-center justify-between gap-5 border-b border-gold-500/15 pb-7">
-          <div className="flex items-center gap-4">
-            <Monogram className="size-14 text-gold-400" />
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+          Tambahkan tamu, buat link personal, dan
+          kirim undangan melalui WhatsApp.
+        </p>
+      </div>
 
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.38em] text-gold-400">
-                Panel Pengelola
-              </p>
-
-              <h1 className="mt-1 font-display text-3xl font-light italic text-ivory">
-                Daftar Tamu Undangan
-              </h1>
-            </div>
-          </div>
-
-          <a
-            href="#/"
-            className="inline-flex items-center gap-2.5 border border-gold-500/40 px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-gold-300 transition-all duration-300 hover:bg-gold-500 hover:text-pine-950"
-          >
-            <IconArrowLeft className="size-4" />
-            Lihat Undangan
-          </a>
-        </header>
-
-        {/* Statistik */}
-        <div className="mt-8 flex flex-wrap items-center gap-x-10 gap-y-4 border border-gold-500/15 bg-pine-800/50 px-6 py-5">
-          <div className="flex items-center gap-3.5">
-            <IconUsers className="size-7 text-gold-400" />
-
-            <div>
-              <p
-                key={guests.length}
-                className="tick font-display text-3xl text-gold-200"
-              >
-                {guests.length.toLocaleString(
-                  "id-ID"
-                )}
-              </p>
-
-              <p className="text-[10px] uppercase tracking-[0.28em] text-sage-300/70">
-                Total Tamu
-              </p>
-            </div>
-          </div>
-
-          <span
-            className="hidden h-10 w-px bg-gold-500/20 sm:block"
-            aria-hidden="true"
-          />
-
-          <div>
-            <p className="font-display text-3xl text-gold-200">
-              {withPhone.toLocaleString("id-ID")}
-            </p>
-
-            <p className="text-[10px] uppercase tracking-[0.28em] text-sage-300/70">
-              Dengan No. WhatsApp
-            </p>
-          </div>
-
-          <span
-            className="hidden h-10 w-px bg-gold-500/20 sm:block"
-            aria-hidden="true"
-          />
-
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2 truncate text-[13px] text-sage-300/80">
-              <IconLink className="size-4 shrink-0 text-gold-400" />
-
-              <span className="truncate">
-                {invitationUrl}/?to=NamaTamu
-              </span>
-            </p>
-
-            <p className="mt-1 text-[10px] uppercase tracking-[0.28em] text-sage-300/70">
-              Pola Link Pribadi
-            </p>
-          </div>
+      {notice ? (
+        <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          {notice}
         </div>
+      ) : null}
 
-        {/* URL Undangan Personal */}
-        <div className="mt-6 border-2 border-gold-500/40 bg-gradient-to-r from-pine-800/80 to-pine-900/80 p-6">
-          <div className="flex items-start gap-4">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-gold-500/20">
-              <IconLink className="size-6 text-gold-400" />
-            </div>
-
-            <div className="flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gold-400">
-                URL Undangan Personal Anda
-              </p>
-
-              <p className="mt-1 text-sm text-sage-300/80">
-                Link ini akan otomatis ditambahkan ke setiap undangan tamu
-              </p>
-
-              <div className="mt-3 flex items-center gap-2">
-                <code className="flex-1 truncate rounded-[3px] bg-pine-950/80 px-4 py-2.5 font-mono text-sm text-gold-200">
-                  {invitationUrl}
-                </code>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    void copyText(invitationUrl);
-                    say(
-                      "URL undangan personal disalin!"
-                    );
-                  }}
-                  className="shrink-0 rounded-[3px] bg-gold-500 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-pine-950 transition-all hover:bg-gold-400"
-                >
-                  Salin
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Cara pakai */}
-        <ol className="mt-6 grid gap-3 border border-gold-500/15 bg-pine-900/40 p-6 text-[13px] leading-relaxed text-sage-300/90 sm:grid-cols-2">
-          {[
-            "Tempel daftar nama satu nama per baris. Nomor HP opsional dipisah tanda | lalu klik Tambahkan.",
-            "Setiap tamu otomatis mendapat link pribadi — salin atau kirim langsung via WhatsApp.",
-            "Atur template pesan; {nama} dan {link} akan terisi otomatis untuk tiap tamu.",
-            "Ekspor CSV/TXT untuk alat broadcast, atau cadangkan JSON agar data aman.",
-          ].map((step, index) => (
-            <li
-              key={index}
-              className="flex gap-3.5"
-            >
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-gold-500/50 font-display text-xs italic text-gold-300">
-                {index + 1}
-              </span>
-
-              {step}
-            </li>
-          ))}
-        </ol>
-
-        {/* Template pesan */}
-        <section className="mt-12">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-gold-400">
-                Langkah 3
-              </p>
-
-              <h2 className="mt-1.5 font-display text-2xl font-light italic text-ivory">
-                Template Pesan WhatsApp
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="space-y-6">
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 shadow-xl">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-slate-100">
+                Tambah Banyak Tamu
               </h2>
-            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setTemplate(DEFAULT_TEMPLATE);
-                say(
-                  "Template dikembalikan ke bawaan"
-                );
-              }}
-              className="border border-gold-500/30 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.22em] text-gold-300 transition-colors hover:bg-gold-500 hover:text-pine-950"
-            >
-              Kembalikan Bawaan
-            </button>
-          </div>
-
-          <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <div>
-              <textarea
-                value={template}
-                onChange={(event) =>
-                  setTemplate(event.target.value)
-                }
-                rows={12}
-                className={`${inputCls} resize-y font-mono text-[12.5px] leading-relaxed`}
-                aria-label="Template pesan WhatsApp"
-              />
-
-              <p className="mt-2.5 text-xs text-sage-300/70">
-                Gunakan{" "}
-                <code className="text-gold-300">
-                  {"{nama}"}
-                </code>{" "}
-                dan{" "}
-                <code className="text-gold-300">
-                  {"{link}"}
-                </code>{" "}
-                — keduanya terisi otomatis. Tersimpan otomatis di perangkat ini.
-              </p>
-            </div>
-
-            <div className="border border-gold-500/20 bg-pine-800/50 p-5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-gold-400">
-                Pratinjau{" "}
-                {previewGuest
-                  ? `· ${previewGuest.name}`
-                  : "· contoh"}
+              <p className="mt-1 text-sm text-slate-400">
+                Satu tamu per baris dengan format:
               </p>
 
-              <p className="mt-3 max-h-64 overflow-y-auto whitespace-pre-line text-[13px] leading-relaxed text-sage-300/95">
-                {previewMsg}
-              </p>
+              <code className="mt-2 inline-block rounded bg-slate-950 px-2 py-1 text-xs text-amber-300">
+                Nama Tamu | Nomor WhatsApp
+              </code>
             </div>
-          </div>
-        </section>
 
-        {/* Tambah massal */}
-        <section className="mt-12">
-          <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-gold-400">
-            Langkah 1
-          </p>
-
-          <h2 className="mt-1.5 font-display text-2xl font-light italic text-ivory">
-            Tambahkan Tamu Massal
-          </h2>
-
-          <div className="mt-5 border border-gold-500/20 bg-pine-800/50 p-5 sm:p-6">
             <textarea
               value={bulk}
               onChange={(event) =>
                 setBulk(event.target.value)
               }
-              rows={8}
-              placeholder={
-                "Bapak H. Ahmad Fauzi beserta keluarga\nIbu Siti Aminah | 081234567890\nKeluarga Besar Wijaya\nBudi Santoso & Istri | 081987654321"
-              }
-              className={`${inputCls} resize-y font-mono text-[12.5px]`}
-              aria-label="Tempel daftar nama tamu"
+              placeholder={`Bapak Ahmad | 08123456789
+Ibu Siti | 082233445566
+Keluarga Budi | 081298765432`}
+              rows={7}
+              className="w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-amber-500"
             />
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs text-sage-300/70">
-                {parsedCount > 0 ? (
-                  <span className="text-gold-300">
-                    {parsedCount} baris terbaca — siap ditambahkan
-                  </span>
-                ) : (
-                  "Satu nama per baris · nomor HP opsional dipisah | · duplikat otomatis dilewati"
-                )}
-              </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void addBulk()}
+                disabled={saving}
+                className="rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving
+                  ? "Menyimpan..."
+                  : "Tambah Tamu"}
+              </button>
 
               <button
                 type="button"
-                onClick={addBulk}
-                disabled={parsedCount === 0}
-                className="bg-gold-500 px-6 py-3 text-[11px] font-extrabold uppercase tracking-[0.22em] text-pine-950 shadow-[0_8px_24px_rgba(200,169,97,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:translate-y-0"
+                onClick={() => setBulk("")}
+                disabled={!bulk}
+                className="rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Tambahkan{" "}
-                {parsedCount > 0
-                  ? `${parsedCount} Tamu`
-                  : ""}
+                Bersihkan
               </button>
             </div>
           </div>
-        </section>
 
-        {/* Daftar tamu */}
-        <section className="mt-12">
-          <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-gold-400">
-            Langkah 2
-          </p>
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 shadow-xl">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-slate-100">
+                Template Pesan WhatsApp
+              </h2>
 
-          <h2 className="mt-1.5 font-display text-2xl font-light italic text-ivory">
-            Daftar Tamu{" "}
-            <span className="text-lg text-gold-300/80">
-              ({filtered.length.toLocaleString("id-ID")})
-            </span>
-          </h2>
-
-          {/* Toolbar */}
-          <div className="mt-5 flex flex-col gap-3 border border-gold-500/20 bg-pine-800/50 p-4 lg:flex-row lg:items-center">
-            <div className="relative flex-1">
-              <IconSearch className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-sage-300/50" />
-
-              <input
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setVisible(PAGE);
-                }}
-                placeholder="Cari nama atau nomor…"
-                className={`${inputCls} pl-11`}
-                aria-label="Cari tamu"
-              />
+              <p className="mt-1 text-sm text-slate-400">
+                Gunakan variabel{" "}
+                <code className="text-amber-300">
+                  {"{nama}"}
+                </code>{" "}
+                dan{" "}
+                <code className="text-amber-300">
+                  {"{link}"}
+                </code>
+                .
+              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <textarea
+              value={template}
+              onChange={(event) =>
+                setTemplate(event.target.value)
+              }
+              rows={12}
+              className="w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-amber-500"
+            />
+
+            <p className="mt-3 text-xs text-slate-500">
+              Template tersimpan otomatis ke Supabase.
+            </p>
+          </div>
+        </div>
+
+        <aside className="space-y-6">
+          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 shadow-xl">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm text-slate-400">
+                  Total tamu
+                </p>
+
+                <p className="mt-1 text-4xl font-bold text-amber-400">
+                  {guests.length}
+                </p>
+              </div>
+
+              <div className="rounded-full bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-300">
+                Tersinkron
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  void copyAllLinks();
-                }}
-                disabled={filtered.length === 0}
-                className="inline-flex items-center gap-2 bg-gold-500 px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-pine-950 transition-all hover:bg-gold-400 disabled:opacity-35"
+                onClick={exportCsv}
+                className="rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-amber-500 hover:text-amber-300"
               >
-                <IconCopy className="size-3.5" />
-                Salin Semua Link
+                Download CSV
               </button>
 
               <button
                 type="button"
-                onClick={() => {
-                  downloadFile(
-                    "daftar-tamu.csv",
-                    toCsv(
-                      filtered,
-                      invitationSlug
-                    ),
-                    "text/csv"
-                  );
-
-                  say("CSV diunduh");
-                }}
-                disabled={filtered.length === 0}
-                className="inline-flex items-center gap-2 border border-gold-500/30 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-gold-300 transition-colors hover:bg-gold-500 hover:text-pine-950 disabled:opacity-35"
+                onClick={exportLinks}
+                className="rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-amber-500 hover:text-amber-300"
               >
-                <IconDownload className="size-3.5" />
-                CSV
+                Download Semua Link
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  downloadFile(
-                    "link-undangan.txt",
-                    toLinksTxt(
-                      filtered,
-                      invitationSlug
-                    ),
-                    "text/plain"
-                  );
-
-                  say("TXT diunduh");
-                }}
-                disabled={filtered.length === 0}
-                className="inline-flex items-center gap-2 border border-gold-500/30 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-gold-300 transition-colors hover:bg-gold-500 hover:text-pine-950 disabled:opacity-35"
-              >
-                <IconDownload className="size-3.5" />
-                TXT
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  downloadFile(
-                    "cadangan-tamu.json",
-                    JSON.stringify(
-                      guests,
-                      null,
-                      2
-                    ),
-                    "application/json"
-                  );
-
-                  say(
-                    "Cadangan JSON diunduh"
-                  );
-                }}
-                disabled={guests.length === 0}
-                className="inline-flex items-center gap-2 border border-gold-500/30 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-gold-300 transition-colors hover:bg-gold-500 hover:text-pine-950 disabled:opacity-35"
-              >
-                <IconDownload className="size-3.5" />
-                JSON
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  fileRef.current?.click()
-                }
-                className="inline-flex items-center gap-2 border border-gold-500/30 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-gold-300 transition-colors hover:bg-gold-500 hover:text-pine-950"
-              >
-                <IconUpload className="size-3.5" />
-                Pulihkan
-              </button>
-
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".json,application/json"
-                className="hidden"
-                onChange={onImportFile}
-              />
 
               {confirmClear ? (
-                <span className="inline-flex items-center gap-2 border border-rose-400/40 px-3 py-1.5">
-                  <span className="text-[10px] font-bold uppercase text-rose-300">
-                    Yakin?
-                  </span>
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                  <p className="text-sm text-red-300">
+                    Hapus seluruh daftar tamu?
+                  </p>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGuests([]);
-                      setConfirmClear(false);
-                      say("Semua tamu dihapus");
-                    }}
-                    className="bg-rose-400 px-3 py-1 text-[10px] font-extrabold uppercase text-pine-950 hover:bg-rose-300"
-                  >
-                    Ya
-                  </button>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void removeAllGuests()
+                      }
+                      disabled={saving}
+                      className="rounded-md bg-red-500 px-3 py-2 text-xs font-semibold text-white hover:bg-red-400 disabled:opacity-50"
+                    >
+                      Ya, Hapus Semua
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setConfirmClear(false)
-                    }
-                    className="px-2 py-1 text-[10px] font-bold uppercase text-sage-300 hover:text-ivory"
-                  >
-                    Batal
-                  </button>
-                </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfirmClear(false)
+                      }
+                      className="rounded-md border border-slate-600 px-3 py-2 text-xs text-slate-300"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <button
                   type="button"
@@ -864,212 +594,199 @@ export default function GuestManager({
                     setConfirmClear(true)
                   }
                   disabled={guests.length === 0}
-                  className="inline-flex items-center gap-2 border border-rose-400/30 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300/90 transition-colors hover:bg-rose-400 hover:text-pine-950 disabled:opacity-35"
+                  className="rounded-lg border border-red-500/30 px-4 py-2.5 text-sm font-medium text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <IconTrash className="size-3.5" />
-                  Hapus Semua
+                  Hapus Semua Tamu
                 </button>
               )}
             </div>
           </div>
+        </aside>
+      </div>
 
-          {/* Kondisi kosong */}
-          {guests.length === 0 ? (
-            <div className="mt-4 border border-dashed border-gold-500/25 px-6 py-16 text-center">
-              <IconUsers className="mx-auto size-10 text-gold-500/50" />
+      <div className="mt-8 rounded-xl border border-slate-700 bg-slate-900/60 shadow-xl">
+        <div className="flex flex-col gap-4 border-b border-slate-700 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-100">
+              Daftar Tamu
+            </h2>
 
-              <p className="mt-4 font-display text-xl italic text-sage-300/90">
-                Belum ada tamu terdaftar
-              </p>
+            <p className="mt-1 text-sm text-slate-400">
+              {filteredGuests.length} dari{" "}
+              {guests.length} tamu ditampilkan
+            </p>
+          </div>
 
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-sage-300/60">
-                Tempel 1.000 nama sekaligus di kotak Tambahkan Tamu di atas — link pribadi akan dibuat otomatis untuk setiap nama.
-              </p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="mt-4 border border-dashed border-gold-500/25 px-6 py-12 text-center">
-              <p className="font-display text-lg italic text-sage-300/80">
-                Tidak ada hasil untuk “{query}”
-              </p>
-            </div>
-          ) : (
-            <>
-              <ul className="mt-4 space-y-2">
-                {shown.map((guest, index) =>
-                  editingId === guest.id ? (
-                    <li
-                      key={guest.id}
-                      className="border border-gold-500/40 bg-pine-800/80 p-4"
-                    >
-                      <div className="flex flex-col gap-2.5 sm:flex-row">
-                        <input
-                          value={editName}
-                          onChange={(event) =>
-                            setEditName(
-                              event.target.value
-                            )
+          <input
+            type="search"
+            value={query}
+            onChange={(event) =>
+              setQuery(event.target.value)
+            }
+            placeholder="Cari nama atau nomor..."
+            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-500 sm:max-w-xs"
+          />
+        </div>
+
+        {loading ? (
+          <div className="px-6 py-16 text-center">
+            <div className="mx-auto size-8 animate-spin rounded-full border-2 border-slate-700 border-t-amber-400" />
+
+            <p className="mt-4 text-sm text-slate-400">
+              Memuat daftar tamu...
+            </p>
+          </div>
+        ) : filteredGuests.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <p className="text-lg text-slate-300">
+              {guests.length === 0
+                ? "Belum ada tamu."
+                : "Tamu tidak ditemukan."}
+            </p>
+
+            <p className="mt-2 text-sm text-slate-500">
+              {guests.length === 0
+                ? "Tambahkan tamu menggunakan form di atas."
+                : "Coba gunakan kata pencarian lain."}
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-800">
+            {filteredGuests.map((guest, index) => {
+              const link = guestLink(
+                guest.name,
+                invitationSlug,
+              );
+
+              const isEditing =
+                editingId === guest.id;
+
+              return (
+                <div
+                  key={guest.id}
+                  className="p-5 transition hover:bg-slate-800/30"
+                >
+                  {isEditing ? (
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+                      <input
+                        value={editName}
+                        onChange={(event) =>
+                          setEditName(
+                            event.target.value,
+                          )
+                        }
+                        placeholder="Nama tamu"
+                        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-500"
+                      />
+
+                      <input
+                        value={editPhone}
+                        onChange={(event) =>
+                          setEditPhone(
+                            event.target.value,
+                          )
+                        }
+                        placeholder="Nomor WhatsApp"
+                        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-500"
+                      />
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void saveEdit()
                           }
-                          className={`${inputCls} flex-1`}
-                          aria-label="Nama tamu"
-                          autoFocus
-                        />
+                          disabled={saving}
+                          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
+                        >
+                          Simpan
+                        </button>
 
-                        <input
-                          value={editPhone}
-                          onChange={(event) =>
-                            setEditPhone(
-                              event.target.value
-                            )
-                          }
-                          placeholder="No HP opsional"
-                          className={`${inputCls} sm:w-48`}
-                          aria-label="Nomor HP tamu"
-                        />
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex min-w-0 items-start gap-4">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-sm font-semibold text-amber-300">
+                          {index + 1}
+                        </div>
 
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={saveEdit}
-                            className="inline-flex items-center gap-2 bg-gold-500 px-5 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-pine-950 hover:bg-gold-400"
+                        <div className="min-w-0">
+                          <h3 className="truncate font-medium text-slate-100">
+                            {guest.name}
+                          </h3>
+
+                          <p className="mt-1 text-sm text-slate-400">
+                            {guest.phone || "Nomor belum diisi"}
+                          </p>
+
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 block max-w-xl truncate text-xs text-amber-400 hover:text-amber-300"
                           >
-                            <IconCheck className="size-4" />
-                            Simpan
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditName("");
-                              setEditPhone("");
-                            }}
-                            className="border border-gold-500/30 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-sage-300 hover:text-ivory"
-                          >
-                            Batal
-                          </button>
+                            {link}
+                          </a>
                         </div>
                       </div>
-                    </li>
-                  ) : (
-                    <li
-                      key={guest.id}
-                      className="group grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2.5 border border-gold-500/12 bg-pine-800/40 px-4 py-3 transition-all duration-300 hover:border-gold-500/40 hover:bg-pine-800/70 sm:grid-cols-[3.2rem_1fr_auto]"
-                    >
-                      <span className="flex size-8 items-center justify-center rounded-full border border-gold-500/25 font-display text-xs italic text-gold-400/90">
-                        {index + 1}
-                      </span>
 
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-ivory">
-                          {guest.name}
-                        </p>
-
-                        <p className="truncate text-xs text-sage-300/60">
-                          {guest.phone
-                            ? `+${normalizePhone(
-                                guest.phone
-                              )}`
-                            : "tanpa nomor — link tetap bisa disalin & dikirim manual"}
-                        </p>
-                      </div>
-
-                      <div className="col-span-2 flex justify-start gap-1.5 sm:col-span-1 sm:justify-end">
-                        <RowBtn
-                          label="Kirim via WhatsApp"
+                      <div className="flex flex-wrap gap-2 lg:justify-end">
+                        <button
+                          type="button"
                           onClick={() =>
-                            shareWa(guest)
+                            sendWhatsApp(guest)
                           }
-                          tone="border-emerald-400/30 text-emerald-300 hover:bg-emerald-400 hover:text-pine-950"
+                          className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-400"
                         >
-                          <IconChat className="size-4" />
-                        </RowBtn>
+                          WhatsApp
+                        </button>
 
-                        <RowBtn
-                          label="Salin link undangan"
+                        <button
+                          type="button"
                           onClick={() =>
-                            void copyLink(guest)
+                            copyGuestLink(guest)
                           }
-                          tone="border-gold-500/35 text-gold-300 hover:bg-gold-500 hover:text-pine-950"
+                          className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-amber-500 hover:text-amber-300"
                         >
-                          <IconLink className="size-4" />
-                        </RowBtn>
+                          Salin Link
+                        </button>
 
-                        <RowBtn
-                          label="Ubah"
+                        <button
+                          type="button"
                           onClick={() =>
                             startEdit(guest)
                           }
-                          tone="border-gold-500/20 text-sage-300 hover:bg-pine-700 hover:text-gold-200"
+                          className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-amber-500 hover:text-amber-300"
                         >
-                          <IconPencil className="size-4" />
-                        </RowBtn>
+                          Edit
+                        </button>
 
-                        <RowBtn
-                          label="Hapus"
+                        <button
+                          type="button"
                           onClick={() =>
-                            removeGuest(guest)
+                            void removeGuest(guest)
                           }
-                          tone="border-rose-400/25 text-rose-300/90 hover:bg-rose-400 hover:text-pine-950"
+                          className="rounded-lg border border-red-500/30 px-3 py-2 text-xs text-red-300 hover:bg-red-500/10"
                         >
-                          <IconTrash className="size-4" />
-                        </RowBtn>
+                          Hapus
+                        </button>
                       </div>
-                    </li>
-                  )
-                )}
-              </ul>
-
-              {visible < filtered.length && (
-                <div className="mt-5 text-center">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setVisible(
-                        (current) => current + 100
-                      )
-                    }
-                    className="border border-gold-500/35 px-7 py-3 text-[11px] font-bold uppercase tracking-[0.22em] text-gold-300 transition-all hover:bg-gold-500 hover:text-pine-950"
-                  >
-                    Tampilkan Lebih Banyak (
-                    {(
-                      filtered.length - visible
-                    ).toLocaleString("id-ID")}{" "}
-                    lagi)
-                  </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </>
-          )}
-        </section>
-
-        {/* Footer */}
-        <footer className="mt-14 border-t border-gold-500/15 pt-7 text-center">
-          <p className="text-xs leading-relaxed text-sage-300/60">
-            Daftar tamu tersimpan di peramban perangkat ini — rutin unduh cadangan JSON.
-            <br />
-            Bagikan tiap tamu link pribadinya agar namanya tampil di sampul undangan.
-          </p>
-
-          <a
-            href="#/"
-            className="mt-4 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] text-gold-400 transition-colors hover:text-gold-200"
-          >
-            <IconArrowLeft className="size-4" />
-            Kembali ke undangan
-          </a>
-        </footer>
+              );
+            })}
+          </div>
+        )}
       </div>
-
-      {/* Toast */}
-      {toast && (
-        <div
-          role="status"
-          className="fixed bottom-6 left-1/2 z-[95] flex -translate-x-1/2 items-center gap-2.5 whitespace-nowrap bg-gold-500 px-6 py-3.5 text-xs font-extrabold uppercase tracking-[0.18em] text-pine-950 shadow-[0_16px_44px_rgba(200,169,97,0.4)] animate-[tick-pop_0.5s_cubic-bezier(0.16,1,0.3,1)]"
-        >
-          <IconCheck className="size-4" />
-          {toast}
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
