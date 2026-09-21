@@ -109,7 +109,9 @@ export default function App() {
 
     const unsubscribe = onAuthStateChange(
       (nextUser) => {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         const authUser =
           nextUser as AuthUser | null;
@@ -118,7 +120,9 @@ export default function App() {
 
         void (async () => {
           if (!authUser) {
-            if (!mounted) return;
+            if (!mounted) {
+              return;
+            }
 
             setProfile(null);
             setUserName(null);
@@ -131,7 +135,9 @@ export default function App() {
             const nextProfile =
               await getAdminProfile(authUser.id);
 
-            if (!mounted) return;
+            if (!mounted) {
+              return;
+            }
 
             setProfile(nextProfile);
 
@@ -149,7 +155,9 @@ export default function App() {
               error
             );
 
-            if (!mounted) return;
+            if (!mounted) {
+              return;
+            }
 
             setProfile(null);
             setUserName(null);
@@ -249,51 +257,60 @@ export default function App() {
       return <AdminLogin />;
     }
 
-    let guestSlug:
-      | string
-      | undefined;
+    let guestSlug: string | undefined;
 
-    if (profile?.user_id) {
-      try {
-        const rawData =
-          localStorage.getItem(
-            `wedding-data-${profile.user_id}`
-          );
+    try {
+      /*
+       * Penting:
+       * Gunakan user.id, bukan profile.user_id.
+       * WeddingProvider juga menggunakan user.id,
+       * sehingga key localStorage harus sama.
+       */
+      const storageKey =
+        `wedding-data-${user.id}`;
 
-        if (!rawData) {
+      const rawData =
+        localStorage.getItem(storageKey);
+
+      if (!rawData) {
+        console.error(
+          "Data undangan tidak ditemukan pada localStorage:",
+          storageKey
+        );
+      } else {
+        const savedData =
+          JSON.parse(
+            rawData
+          ) as SavedWeddingData;
+
+        const groomName =
+          savedData.groom?.short?.trim();
+
+        const brideName =
+          savedData.bride?.short?.trim();
+
+        if (!groomName || !brideName) {
           console.error(
-            "Data undangan tidak ditemukan untuk user:",
-            profile.user_id
+            "Nama mempelai belum lengkap:",
+            savedData
           );
         } else {
-          const savedData =
-            JSON.parse(
-              rawData
-            ) as SavedWeddingData;
+          guestSlug = generateSlug(
+            groomName,
+            brideName
+          );
 
-          const groomName =
-            savedData.groom?.short?.trim();
-
-          const brideName =
-            savedData.bride?.short?.trim();
-
-          if (groomName && brideName) {
-            guestSlug = generateSlug(
-              groomName,
-              brideName
-            );
-          } else {
-            console.error(
-              "Nama mempelai belum lengkap. Slug tidak dibuat."
-            );
-          }
+          console.log(
+            "Slug undangan aktif:",
+            guestSlug
+          );
         }
-      } catch (error) {
-        console.error(
-          "Gagal membaca data undangan:",
-          error
-        );
       }
+    } catch (error) {
+      console.error(
+        "Gagal membaca data undangan:",
+        error
+      );
     }
 
     return (
