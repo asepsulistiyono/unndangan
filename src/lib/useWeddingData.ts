@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, SUPABASE_ENABLED } from "./supabase";
 import { WEDDING as DEFAULT_WEDDING, IMG as DEFAULT_IMG } from "./wedding";
-
-/**
- * Tipe data undangan yang bisa disimpan di DB.
- * Semua field opsional — field yang tidak ada akan diisi dari DEFAULT.
- */
 import type { ReligiousFormat } from "./religiousFormats";
-
 import type { TemplateId } from "./templates";
 
+/**
+ * Tipe data undangan yang bisa disimpan di database.
+ * Semua field opsional karena field yang tidak ada
+ * akan menggunakan nilai dari DEFAULT_WEDDING.
+ */
 export interface WeddingData {
   initials?: string;
   dateLabel?: string;
@@ -17,29 +16,77 @@ export interface WeddingData {
   dateISO?: string;
   city?: string;
   venueMain?: string;
-  groom?: Partial<typeof DEFAULT_WEDDING.groom> & { parentsEn?: string; bioEn?: string };
-  bride?: Partial<typeof DEFAULT_WEDDING.bride> & { parentsEn?: string; bioEn?: string };
-  quote?: Partial<typeof DEFAULT_WEDDING.quote> & { textEn?: string };
-  events?: Array<Partial<(typeof DEFAULT_WEDDING.events)[number]> & { nameEn?: string; noteEn?: string }>;
-  story?: Array<Partial<(typeof DEFAULT_WEDDING.story)[number]> & { titleEn?: string; textEn?: string }>;
+
+  groom?: Partial<typeof DEFAULT_WEDDING.groom> & {
+    parentsEn?: string;
+    bioEn?: string;
+  };
+
+  bride?: Partial<typeof DEFAULT_WEDDING.bride> & {
+    parentsEn?: string;
+    bioEn?: string;
+  };
+
+  quote?: Partial<typeof DEFAULT_WEDDING.quote> & {
+    textEn?: string;
+  };
+
+  events?: Array<
+    Partial<(typeof DEFAULT_WEDDING.events)[number]> & {
+      nameEn?: string;
+      noteEn?: string;
+    }
+  >;
+
+  story?: Array<
+    Partial<(typeof DEFAULT_WEDDING.story)[number]> & {
+      titleEn?: string;
+      textEn?: string;
+    }
+  >;
+
   gallery?: Array<Partial<(typeof DEFAULT_WEDDING.gallery)[number]>>;
+
   gifts?: Array<Partial<(typeof DEFAULT_WEDDING.gifts)[number]>>;
+
   giftAddress?: string;
+
   dresscode?: Array<Partial<(typeof DEFAULT_WEDDING.dresscode)[number]>>;
+
   photos?: Partial<typeof DEFAULT_IMG>;
+
   themeId?: string;
   ornamentId?: string;
-  customOrnament?: string; // SVG content untuk ornamen custom
-  language?: "id" | "en"; // Bahasa: Indonesia atau English
-  religiousFormat?: ReligiousFormat; // Format agama
-  templateId?: TemplateId; // Desain template
+  customOrnament?: string;
+
+  language?: "id" | "en";
+  religiousFormat?: ReligiousFormat;
+  templateId?: TemplateId;
 }
 
+type SettingsRow = {
+  id: string;
+  user_id?: string | null;
+  slug?: string | null;
+  data?: WeddingData | null;
+};
+
+type RealtimePayload = {
+  eventType?: "INSERT" | "UPDATE" | "DELETE";
+  new?: SettingsRow;
+  old?: SettingsRow;
+};
+
 /**
- * Hook untuk fetch & update data undangan PER USER (multi-tenant).
- * - Jika Supabase aktif: fetch dari tabel `settings` dengan filter user_id.
- * - Jika tidak: pakai localStorage dengan key per-user.
- * - Setiap admin punya data undangan sendiri, tidak saling mempengaruhi.
+ * Hook untuk mengambil dan menyimpan data undangan per user.
+ *
+ * Jika Supabase aktif:
+ * - Halaman publik dengan slug mengambil data berdasarkan slug.
+ * - Halaman admin mengambil data berdasarkan user_id.
+ * - Perubahan database dipantau menggunakan satu channel Realtime.
+ *
+ * Jika Supabase tidak aktif:
+ * - Data disimpan di localStorage berdasarkan user_id.
  */
 export function useWeddingData(
   userId?: string | null,
@@ -49,138 +96,229 @@ export function useWeddingData(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const storageKey = userId ? `wedding-data-${userId}` : "wedding-data-default";
+  const storageKey = userId
+    ? `wedding-data-${userId}`
+    : "wedding-data-default";
 
-  // Fetch initial data
+  /**
+   * Mengambil data awal dari Supabase atau localStorage.
+   */
   const fetchData = useCallback(async () => {
-  setLoading(true);
-  setError(null);
+    setLoading(true);
+    setError(null);
 
-  try {
-    if (SUPABASE_ENABLED && slug) {
-      const { data: row, error: err } = await supabase
-        .from("settings")
-        .select("data")
-        .eq("slug", slug)
-        .maybeSingle();
+    try {
+      if (SUPABASE_ENABLED && slug) {
+        const { data: row, error: fetchError } = await supabase
+          .from("settings")
+          .select("data")
+          .eq("slug", slug)
+          .maybeSingle();
 
-      if (err) throw err;
+        if (fetchError) {
+          throw fetchError;
+        }
 
-      setData((row?.data as WeddingData) || {});
-    } else if (SUPABASE_ENABLED && userId) {
-      const { data: row, error: err } = await supabase
-        .from("settings")
-        .select("data")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (err) throw err;
-
-      setData((row?.data as WeddingData) || {});
-    } else {
-      const raw = localStorage.getItem(storageKey);
-      setData(raw ? JSON.parse(raw) : {});
-    }
-  } catch (e: any) {
-    setError(e.message || "Gagal memuat data");
-    setData({});
-  } finally {
-    setLoading(false);
-  }
-}, [userId, slug, storageKey]);
-
-  useEffect(() => {
-  if (!SUPABASE_ENABLED || (!userId && !slug)) return;
-
-  const filter = slug
-    ? `slug=eq.${slug}`
-    : `user_id=eq.${userId}`;
-
-  const channel = supabase
-    .channel(`settings-changes-${slug || userId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "settings",
-        filter,
-      },
-      (payload) => {
-        setData((payload.new as any).data || {});
+        setData((row?.data as WeddingData) || {});
+        return;
       }
-    )
-    .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [userId, slug]);
+      if (SUPABASE_ENABLED && userId) {
+        const { data: row, error: fetchError } = await supabase
+          .from("settings")
+          .select("data")
+          .eq("user_id", userId)
+          .maybeSingle();
 
-  // Subscribe real-time (jika Supabase aktif)
+        if (fetchError) {
+          throw fetchError;
+        }
+
+        setData((row?.data as WeddingData) || {});
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        const raw = window.localStorage.getItem(storageKey);
+        setData(raw ? (JSON.parse(raw) as WeddingData) : {});
+      } else {
+        setData({});
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Gagal memuat data undangan";
+
+      setError(message);
+      setData({});
+    } finally {
+      setLoading(false);
+    }
+  }, [slug, storageKey, userId]);
+
+  /**
+   * Fetch data saat user atau slug berubah.
+   */
   useEffect(() => {
-    if (!SUPABASE_ENABLED || !userId) return;
+    void fetchData();
+  }, [fetchData]);
+
+  /**
+   * Satu-satunya subscription Realtime untuk tabel settings.
+   *
+   * Penting:
+   * - Handler .on() dipasang sebelum .subscribe().
+   * - Tidak ada subscription kedua untuk user_id.
+   * - Channel selalu dihapus saat component unmount atau target berubah.
+   */
+  useEffect(() => {
+    if (!SUPABASE_ENABLED || (!userId && !slug)) {
+      return;
+    }
+
+    const targetKey = slug ? `slug-${slug}` : `user-${userId}`;
+
+    const filter = slug
+      ? `slug=eq.${slug}`
+      : `user_id=eq.${userId}`;
+
     const channel = supabase
-      .channel(`settings-changes-${userId}`)
+      .channel(`settings-changes-${targetKey}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "settings", filter: `user_id=eq.${userId}` },
-        (payload) => {
-          setData((payload.new as any).data || {});
+        {
+          event: "*",
+          schema: "public",
+          table: "settings",
+          filter,
+        },
+        (payload: RealtimePayload) => {
+          if (payload.eventType === "DELETE") {
+            setData({});
+            return;
+          }
+
+          setData(payload.new?.data || {});
         }
       )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId]);
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.error(
+            "Gagal berlangganan perubahan Realtime pada tabel settings"
+          );
+        }
 
-  // Update data
+        if (status === "TIMED_OUT") {
+          console.error(
+            "Subscription Realtime tabel settings mengalami timeout"
+          );
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [slug, userId]);
+
+  /**
+   * Menyimpan perubahan data undangan.
+   */
   const updateData = useCallback(
     async (patch: WeddingData) => {
-      const merged = { ...data, ...patch };
+      const merged: WeddingData = {
+        ...data,
+        ...patch,
+      };
+
+      // Update UI lebih dahulu agar terasa cepat.
       setData(merged);
+      setError(null);
+
       try {
         if (SUPABASE_ENABLED && userId) {
-          const { data: existing } = await supabase
+          const { data: existingRows, error: selectError } = await supabase
             .from("settings")
             .select("id")
             .eq("user_id", userId)
             .limit(1);
-          if (existing && existing.length > 0) {
-            const { error } = await supabase
-              .from("settings")
-              .update({ data: merged, updated_at: new Date().toISOString() })
-              .eq("id", existing[0].id);
-            if (error) throw error;
-          } else {
-            const { error } = await supabase.from("settings").insert({
-              user_id: userId,
-              data: merged,
-            });
-            if (error) throw error;
+
+          if (selectError) {
+            throw selectError;
           }
-        } else {
-          localStorage.setItem(storageKey, JSON.stringify(merged));
+
+          const existingRow = existingRows?.[0];
+
+          if (existingRow) {
+            const { error: updateError } = await supabase
+              .from("settings")
+              .update({
+                data: merged,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existingRow.id);
+
+            if (updateError) {
+              throw updateError;
+            }
+          } else {
+            const { error: insertError } = await supabase
+              .from("settings")
+              .insert({
+                user_id: userId,
+                data: merged,
+              });
+
+            if (insertError) {
+              throw insertError;
+            }
+          }
+
+          return;
         }
-      } catch (e: any) {
-        setError(e.message || "Gagal menyimpan");
-        throw e;
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            storageKey,
+            JSON.stringify(merged)
+          );
+        }
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Gagal menyimpan data undangan";
+
+        setError(message);
+        throw err;
       }
     },
-    [data, userId, storageKey]
+    [data, storageKey, userId]
   );
 
-  // Merge dengan default
   const mergedData = mergeWithDefaults(data);
 
-  return { data, mergedData, loading, error, updateData, refetch: fetchData };
+  return {
+    data,
+    mergedData,
+    loading,
+    error,
+    updateData,
+    refetch: fetchData,
+  };
 }
 
 /**
- * Gabungkan data dari DB dengan default, agar field yang tidak ada tetap terisi.
+ * Menggabungkan data dari database dengan data default.
+ * Field yang belum disimpan tetap mendapatkan nilai bawaan.
  */
-function mergeWithDefaults(data: WeddingData): typeof DEFAULT_WEDDING & { photos: typeof DEFAULT_IMG; religiousFormat?: ReligiousFormat; language?: "id" | "en" } {
+function mergeWithDefaults(
+  data: WeddingData
+): typeof DEFAULT_WEDDING & {
+  photos: typeof DEFAULT_IMG;
+  religiousFormat?: ReligiousFormat;
+  language?: "id" | "en";
+} {
   return {
     initials: data.initials ?? DEFAULT_WEDDING.initials,
     dateLabel: data.dateLabel ?? DEFAULT_WEDDING.dateLabel,
@@ -188,26 +326,69 @@ function mergeWithDefaults(data: WeddingData): typeof DEFAULT_WEDDING & { photos
     dateISO: data.dateISO ?? DEFAULT_WEDDING.dateISO,
     city: data.city ?? DEFAULT_WEDDING.city,
     venueMain: data.venueMain ?? DEFAULT_WEDDING.venueMain,
-    groom: { ...DEFAULT_WEDDING.groom, ...data.groom },
-    bride: { ...DEFAULT_WEDDING.bride, ...data.bride },
-    quote: { ...DEFAULT_WEDDING.quote, ...data.quote },
+
+    groom: {
+      ...DEFAULT_WEDDING.groom,
+      ...data.groom,
+    },
+
+    bride: {
+      ...DEFAULT_WEDDING.bride,
+      ...data.bride,
+    },
+
+    quote: {
+      ...DEFAULT_WEDDING.quote,
+      ...data.quote,
+    },
+
     events: data.events?.length
-      ? data.events.map((e, i) => ({ ...DEFAULT_WEDDING.events[i] || DEFAULT_WEDDING.events[0], ...e }))
+      ? data.events.map((event, index) => ({
+          ...(DEFAULT_WEDDING.events[index] ||
+            DEFAULT_WEDDING.events[0]),
+          ...event,
+        }))
       : DEFAULT_WEDDING.events,
+
     story: data.story?.length
-      ? data.story.map((s, i) => ({ ...DEFAULT_WEDDING.story[i] || DEFAULT_WEDDING.story[0], ...s }))
+      ? data.story.map((storyItem, index) => ({
+          ...(DEFAULT_WEDDING.story[index] ||
+            DEFAULT_WEDDING.story[0]),
+          ...storyItem,
+        }))
       : DEFAULT_WEDDING.story,
+
     gallery: data.gallery?.length
-      ? data.gallery.map((g, i) => ({ ...DEFAULT_WEDDING.gallery[i] || DEFAULT_WEDDING.gallery[0], ...g }))
+      ? data.gallery.map((galleryItem, index) => ({
+          ...(DEFAULT_WEDDING.gallery[index] ||
+            DEFAULT_WEDDING.gallery[0]),
+          ...galleryItem,
+        }))
       : DEFAULT_WEDDING.gallery,
+
     gifts: data.gifts?.length
-      ? data.gifts.map((g, i) => ({ ...DEFAULT_WEDDING.gifts[i] || DEFAULT_WEDDING.gifts[0], ...g }))
+      ? data.gifts.map((gift, index) => ({
+          ...(DEFAULT_WEDDING.gifts[index] ||
+            DEFAULT_WEDDING.gifts[0]),
+          ...gift,
+        }))
       : DEFAULT_WEDDING.gifts,
+
     giftAddress: data.giftAddress ?? DEFAULT_WEDDING.giftAddress,
+
     dresscode: data.dresscode?.length
-      ? data.dresscode.map((d, i) => ({ ...DEFAULT_WEDDING.dresscode[i] || DEFAULT_WEDDING.dresscode[0], ...d }))
+      ? data.dresscode.map((dresscodeItem, index) => ({
+          ...(DEFAULT_WEDDING.dresscode[index] ||
+            DEFAULT_WEDDING.dresscode[0]),
+          ...dresscodeItem,
+        }))
       : DEFAULT_WEDDING.dresscode,
-    photos: { ...DEFAULT_IMG, ...data.photos },
+
+    photos: {
+      ...DEFAULT_IMG,
+      ...data.photos,
+    },
+
     religiousFormat: data.religiousFormat,
     language: data.language,
   };
