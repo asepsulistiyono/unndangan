@@ -27,7 +27,10 @@ import {
   type AdminProfile,
 } from "./lib/auth";
 
-import { WeddingProvider } from "./lib/WeddingContext";
+import {
+  WeddingProvider,
+  useWedding,
+} from "./lib/WeddingContext";
 
 import {
   generateSlug,
@@ -47,14 +50,71 @@ type AuthUser = {
   name?: string | null;
 };
 
-type SavedWeddingData = {
-  groom?: {
-    short?: string | null;
-  };
-  bride?: {
-    short?: string | null;
-  };
-};
+function GuestManagerWithSlug() {
+  const {
+    mergedData,
+    loading,
+    error,
+  } = useWedding();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-pine-950">
+        <div className="size-12 animate-spin rounded-full border-2 border-gold-400 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-pine-950 px-5 text-center">
+        <p className="font-display text-2xl italic text-ivory">
+          Gagal Memuat Data Undangan
+        </p>
+
+        <p className="mt-3 max-w-md text-sm text-rose-300">
+          {error}
+        </p>
+      </div>
+    );
+  }
+
+  const groomName =
+    mergedData?.groom?.short?.trim();
+
+  const brideName =
+    mergedData?.bride?.short?.trim();
+
+  if (!groomName || !brideName) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-pine-950 px-5 text-center">
+        <p className="font-display text-2xl italic text-ivory">
+          Data Mempelai Belum Lengkap
+        </p>
+
+        <p className="mt-3 max-w-md text-sm text-sage-300/80">
+          Lengkapi nama singkat mempelai terlebih dahulu di panel admin.
+        </p>
+      </div>
+    );
+  }
+
+  const invitationSlug = generateSlug(
+    groomName,
+    brideName
+  );
+
+  console.log(
+    "Slug undangan dari WeddingProvider:",
+    invitationSlug
+  );
+
+  return (
+    <GuestManager
+      invitationSlug={invitationSlug}
+    />
+  );
+}
 
 export default function App() {
   const [stage, setStage] =
@@ -257,67 +317,9 @@ export default function App() {
       return <AdminLogin />;
     }
 
-    let guestSlug: string | undefined;
-
-    try {
-      /*
-       * Penting:
-       * Gunakan user.id, bukan profile.user_id.
-       * WeddingProvider juga menggunakan user.id,
-       * sehingga key localStorage harus sama.
-       */
-      const storageKey =
-        `wedding-data-${user.id}`;
-
-      const rawData =
-        localStorage.getItem(storageKey);
-
-      if (!rawData) {
-        console.error(
-          "Data undangan tidak ditemukan pada localStorage:",
-          storageKey
-        );
-      } else {
-        const savedData =
-          JSON.parse(
-            rawData
-          ) as SavedWeddingData;
-
-        const groomName =
-          savedData.groom?.short?.trim();
-
-        const brideName =
-          savedData.bride?.short?.trim();
-
-        if (!groomName || !brideName) {
-          console.error(
-            "Nama mempelai belum lengkap:",
-            savedData
-          );
-        } else {
-          guestSlug = generateSlug(
-            groomName,
-            brideName
-          );
-
-          console.log(
-            "Slug undangan aktif:",
-            guestSlug
-          );
-        }
-      }
-    } catch (error) {
-      console.error(
-        "Gagal membaca data undangan:",
-        error
-      );
-    }
-
     return (
       <WeddingProvider userId={user.id}>
-        <GuestManager
-          invitationSlug={guestSlug}
-        />
+        <GuestManagerWithSlug />
       </WeddingProvider>
     );
   }
@@ -426,6 +428,7 @@ export default function App() {
     <WeddingProvider
       key={publicUserId || "default"}
       userId={publicUserId}
+      slug={invitationSlug}
     >
       <ThemeWrapper>
         <TemplateWrapper>
