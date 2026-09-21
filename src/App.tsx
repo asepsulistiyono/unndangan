@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+
 import Cover from "./components/Cover";
 import Nav from "./components/Nav";
 import { Petals } from "./components/Decor";
+
 import Hero from "./components/sections/Hero";
 import Couple from "./components/sections/Couple";
 import Events from "./components/sections/Events";
@@ -10,18 +12,23 @@ import Gallery from "./components/sections/Gallery";
 import Gift from "./components/sections/Gift";
 import Wishes from "./components/sections/Wishes";
 import Closing from "./components/sections/Closing";
+
 import GuestManager from "./components/GuestManager";
 import AdminLogin from "./components/admin/AdminLogin";
 import AdminPanel from "./components/admin/AdminPanel";
 import SuperAdminPanel from "./components/admin/SuperAdminPanel";
+
 import ThemeWrapper from "./components/ThemeWrapper";
 import TemplateWrapper from "./components/TemplateWrapper";
+
 import {
   getAdminProfile,
   onAuthStateChange,
   type AdminProfile,
 } from "./lib/auth";
+
 import { WeddingProvider } from "./lib/WeddingContext";
+
 import {
   generateSlug,
   getUserIdFromSlug,
@@ -33,70 +40,127 @@ type Stage = "closed" | "opening" | "open";
 type AuthUser = {
   id: string;
   email?: string | null;
-  user_metadata?: { name?: string | null };
+  user_metadata?: {
+    name?: string | null;
+  };
   username?: string;
   name?: string | null;
 };
 
+type SavedWeddingData = {
+  groom?: {
+    short?: string | null;
+  };
+  bride?: {
+    short?: string | null;
+  };
+};
+
 export default function App() {
-  const [stage, setStage] = useState<Stage>("closed");
-  const [route, setRoute] = useState(() => window.location.hash);
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [profile, setProfile] = useState<AdminProfile | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [stage, setStage] =
+    useState<Stage>("closed");
+
+  const [route, setRoute] = useState(
+    () => window.location.hash
+  );
+
+  const [user, setUser] =
+    useState<AuthUser | null>(null);
+
+  const [profile, setProfile] =
+    useState<AdminProfile | null>(null);
+
+  const [userName, setUserName] =
+    useState<string | null>(null);
+
+  const [authLoading, setAuthLoading] =
+    useState(true);
 
   useEffect(() => {
-    const onHashChange = () => setRoute(window.location.hash);
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    const onHashChange = () => {
+      setRoute(window.location.hash);
+    };
+
+    window.addEventListener(
+      "hashchange",
+      onHashChange
+    );
+
+    return () => {
+      window.removeEventListener(
+        "hashchange",
+        onHashChange
+      );
+    };
   }, []);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setAuthLoading(false), 5000);
-    return () => window.clearTimeout(timeout);
+    const timeout = window.setTimeout(() => {
+      setAuthLoading(false);
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
   }, []);
 
   useEffect(() => {
     let mounted = true;
-    const unsubscribe = onAuthStateChange((nextUser) => {
-      if (!mounted) return;
 
-      const authUser = nextUser as AuthUser | null;
-      setUser(authUser);
+    const unsubscribe = onAuthStateChange(
+      (nextUser) => {
+        if (!mounted) return;
 
-      void (async () => {
-        if (!authUser) {
-          if (!mounted) return;
-          setProfile(null);
-          setUserName(null);
-          setAuthLoading(false);
-          return;
-        }
+        const authUser =
+          nextUser as AuthUser | null;
 
-        try {
-          const nextProfile = await getAdminProfile(authUser.id);
-          if (!mounted) return;
+        setUser(authUser);
 
-          setProfile(nextProfile);
-          setUserName(
-            nextProfile?.name ||
-              authUser.user_metadata?.name ||
-              authUser.email?.split("@")[0] ||
-              authUser.username ||
-              authUser.name ||
-              null
-          );
-        } catch (error) {
-          console.error("Error loading admin profile:", error);
-          if (!mounted) return;
-          setProfile(null);
-          setUserName(null);
-        } finally {
-          if (mounted) setAuthLoading(false);
-        }
-      })();
-    });
+        void (async () => {
+          if (!authUser) {
+            if (!mounted) return;
+
+            setProfile(null);
+            setUserName(null);
+            setAuthLoading(false);
+
+            return;
+          }
+
+          try {
+            const nextProfile =
+              await getAdminProfile(authUser.id);
+
+            if (!mounted) return;
+
+            setProfile(nextProfile);
+
+            setUserName(
+              nextProfile?.name ||
+                authUser.user_metadata?.name ||
+                authUser.email?.split("@")[0] ||
+                authUser.username ||
+                authUser.name ||
+                null
+            );
+          } catch (error) {
+            console.error(
+              "Error loading admin profile:",
+              error
+            );
+
+            if (!mounted) return;
+
+            setProfile(null);
+            setUserName(null);
+          } finally {
+            if (mounted) {
+              setAuthLoading(false);
+            }
+          }
+        })();
+      }
+    );
 
     return () => {
       mounted = false;
@@ -104,24 +168,47 @@ export default function App() {
     };
   }, []);
 
-  const invitationSlug = parseInvitationSlug(route);
+  const invitationSlug =
+    parseInvitationSlug(route);
+
   const publicUserId = invitationSlug
     ? getUserIdFromSlug(invitationSlug)
     : null;
-  const isAdminRoute = route === "#/admin" || route.startsWith("#/admin/");
-  const isSuperRoute = route === "#/admin/super";
-  const isGuestRoute = route === "#/tamu" || route.startsWith("#/tamu?");
+
+  const isAdminRoute =
+    route === "#/admin" ||
+    route.startsWith("#/admin/");
+
+  const isSuperRoute =
+    route === "#/admin/super";
+
+  const isGuestRoute =
+    route === "#/tamu" ||
+    route.startsWith("#/tamu?");
 
   useEffect(() => {
-    if (user && sessionStorage.getItem("redirect-to-admin") === "true") {
-      sessionStorage.removeItem("redirect-to-admin");
+    if (
+      user &&
+      sessionStorage.getItem(
+        "redirect-to-admin"
+      ) === "true"
+    ) {
+      sessionStorage.removeItem(
+        "redirect-to-admin"
+      );
+
       window.location.hash = "#/admin";
     }
   }, [user]);
 
   useEffect(() => {
     document.body.style.overflow =
-      stage === "open" || isAdminRoute || isGuestRoute ? "" : "hidden";
+      stage === "open" ||
+      isAdminRoute ||
+      isGuestRoute
+        ? ""
+        : "hidden";
+
     return () => {
       document.body.style.overflow = "";
     };
@@ -129,16 +216,26 @@ export default function App() {
 
   useEffect(() => {
     if (!isAdminRoute && !isGuestRoute) {
-      document.title = "Undangan Pernikahan Raka & Sekar";
+      document.title =
+        "Undangan Pernikahan Raka & Sekar";
     }
   }, [isAdminRoute, isGuestRoute]);
 
   const open = () => {
-    if (stage !== "closed") return;
+    if (stage !== "closed") {
+      return;
+    }
+
     setStage("opening");
-    window.setTimeout(() => setStage("open"), 1250);
+
+    window.setTimeout(() => {
+      setStage("open");
+    }, 1250);
   };
 
+  /*
+   * Halaman kelola tamu.
+   */
   if (isGuestRoute) {
     if (authLoading) {
       return (
@@ -148,40 +245,79 @@ export default function App() {
       );
     }
 
-    if (!user) return <AdminLogin />;
+    if (!user) {
+      return <AdminLogin />;
+    }
 
-    let guestSlug = "";
+    let guestSlug:
+      | string
+      | undefined;
+
     if (profile?.user_id) {
       try {
-        const rawData = localStorage.getItem(`wedding-data-${profile.user_id}`);
-        if (rawData) {
-          const savedData = JSON.parse(rawData) as {
-            groom?: { short?: string };
-            bride?: { short?: string };
-          };
-          guestSlug = generateSlug(
-            savedData.groom?.short || "Mempelai",
-            savedData.bride?.short || "Mempelai"
+        const rawData =
+          localStorage.getItem(
+            `wedding-data-${profile.user_id}`
           );
+
+        if (!rawData) {
+          console.error(
+            "Data undangan tidak ditemukan untuk user:",
+            profile.user_id
+          );
+        } else {
+          const savedData =
+            JSON.parse(
+              rawData
+            ) as SavedWeddingData;
+
+          const groomName =
+            savedData.groom?.short?.trim();
+
+          const brideName =
+            savedData.bride?.short?.trim();
+
+          if (groomName && brideName) {
+            guestSlug = generateSlug(
+              groomName,
+              brideName
+            );
+          } else {
+            console.error(
+              "Nama mempelai belum lengkap. Slug tidak dibuat."
+            );
+          }
         }
       } catch (error) {
-        console.error("Gagal membaca data undangan:", error);
+        console.error(
+          "Gagal membaca data undangan:",
+          error
+        );
       }
     }
 
     return (
       <WeddingProvider userId={user.id}>
-        <GuestManager invitationSlug={guestSlug} />
+        <GuestManager
+          invitationSlug={guestSlug}
+        />
       </WeddingProvider>
     );
   }
 
+  /*
+   * Halaman admin.
+   */
   if (isAdminRoute) {
     if (authLoading) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-pine-950 px-5 text-center">
           <div className="size-12 animate-spin rounded-full border-2 border-gold-400 border-t-transparent" />
-          <p className="text-sm text-sage-300/80">Memuat...</p>
+
+          <p className="text-sm text-sage-300/80">
+            Memuat...
+          </p>
+
           <button
             type="button"
             onClick={() => {
@@ -196,15 +332,21 @@ export default function App() {
       );
     }
 
-    if (!user) return <AdminLogin />;
+    if (!user) {
+      return <AdminLogin />;
+    }
 
     if (!profile) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-pine-950 px-5 text-center">
-          <p className="font-display text-2xl italic text-ivory">Akses Ditolak</p>
+          <p className="font-display text-2xl italic text-ivory">
+            Akses Ditolak
+          </p>
+
           <p className="mt-3 text-sm text-sage-300/80">
             Anda tidak terdaftar sebagai admin.
           </p>
+
           <button
             type="button"
             onClick={() => {
@@ -219,13 +361,20 @@ export default function App() {
       );
     }
 
-    if (isSuperRoute && profile.role !== "super_admin") {
+    if (
+      isSuperRoute &&
+      profile.role !== "super_admin"
+    ) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-pine-950 px-5 text-center">
-          <p className="font-display text-2xl italic text-ivory">Akses Ditolak</p>
+          <p className="font-display text-2xl italic text-ivory">
+            Akses Ditolak
+          </p>
+
           <p className="mt-3 text-sm text-sage-300/80">
             Hanya super admin yang boleh mengakses halaman ini.
           </p>
+
           <a
             href="#/admin"
             className="mt-6 border border-gold-500/40 px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-gold-300 transition-all hover:bg-gold-500 hover:text-pine-950"
@@ -239,16 +388,28 @@ export default function App() {
     return (
       <WeddingProvider userId={user.id}>
         {isSuperRoute ? (
-          <SuperAdminPanel profile={profile} userName={userName} />
+          <SuperAdminPanel
+            profile={profile}
+            userName={userName}
+          />
         ) : (
-          <AdminPanel profile={profile} userName={userName} />
+          <AdminPanel
+            profile={profile}
+            userName={userName}
+          />
         )}
       </WeddingProvider>
     );
   }
 
+  /*
+   * Halaman undangan publik.
+   */
   return (
-    <WeddingProvider key={publicUserId || "default"} userId={publicUserId}>
+    <WeddingProvider
+      key={publicUserId || "default"}
+      userId={publicUserId}
+    >
       <ThemeWrapper>
         <TemplateWrapper>
           <div
@@ -261,13 +422,19 @@ export default function App() {
           />
 
           <Petals />
+
           {stage !== "open" && (
-            <Cover opening={stage === "opening"} onOpen={open} />
+            <Cover
+              opening={stage === "opening"}
+              onOpen={open}
+            />
           )}
 
           <main
             className={`relative z-10 transition-opacity duration-1000 ${
-              stage === "open" ? "opacity-100" : "opacity-0"
+              stage === "open"
+                ? "opacity-100"
+                : "opacity-0"
             }`}
             aria-hidden={stage !== "open"}
           >
