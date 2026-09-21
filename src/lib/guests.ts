@@ -80,9 +80,11 @@ export function invitationLink(
   invitationSlug?: string
 ): string {
   const cleanSlug = normalizeSlug(
-    invitationSlug ||
-      DEFAULT_INVITATION_SLUG
+    invitationSlug || DEFAULT_INVITATION_SLUG
   );
+
+  return `${baseUrl()}/#/${cleanSlug}`;
+}
 
   if (!cleanSlug) {
     throw new Error(
