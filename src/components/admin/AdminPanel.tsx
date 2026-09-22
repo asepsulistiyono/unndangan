@@ -26,44 +26,52 @@ export default function AdminPanel({ profile, userName }: { profile: AdminProfil
   };
 
   const handleSave = async (patch: any) => {
-    setSaving(true);
-    try {
-      await updateData(patch);
-      
-      // Baca data terkini langsung dari localStorage
-      // Karena mergedData belum ter-update (React belum re-render)
-      let groomName = mergedData.groom.short;
-      let brideName = mergedData.bride.short;
-      
-      if (profile?.user_id) {
-        try {
-          const storageKey = `wedding-data-${profile.user_id}`;
-          const rawData = localStorage.getItem(storageKey);
-          if (rawData) {
-            const savedData = JSON.parse(rawData);
-            groomName = savedData.groom?.short || groomName;
-            brideName = savedData.bride?.short || brideName;
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-      
-      const slug = generateSlug(groomName, brideName);
-      
-      // Pastikan user_id ada sebelum save slug
-      if (profile?.user_id) {
-        saveSlugMapping(slug, profile.user_id);
-      }
-      
-      showToast("Perubahan tersimpan");
-    } catch (err: any) {
-      showToast("Gagal menyimpan: " + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  setSaving(true);
 
+  try {
+    await updateData(patch);
+
+    /**
+     * Gunakan nilai terbaru dari patch.
+     * Jangan membaca localStorage karena ketika
+     * Supabase aktif, data utama berada di database.
+     */
+    const groomName =
+      patch.groom?.short ??
+      mergedData.groom.short;
+
+    const brideName =
+      patch.bride?.short ??
+      mergedData.bride.short;
+
+    const slug = generateSlug(
+      groomName,
+      brideName
+    );
+
+    if (profile?.user_id) {
+      saveSlugMapping(
+        slug,
+        profile.user_id
+      );
+    }
+
+    /**
+     * Ambil ulang data setelah penyimpanan
+     * agar tampilan admin langsung sinkron.
+     */
+    await refetch();
+
+    showToast("Perubahan tersimpan");
+  } catch (err: any) {
+    showToast(
+      "Gagal menyimpan: " +
+        (err?.message || "Terjadi kesalahan")
+    );
+  } finally {
+    setSaving(false);
+  }
+};
   const tabs: { id: Tab; label: string }[] = [
     { id: "template", label: "Template" },
     { id: "bahasa", label: "Bahasa" },
