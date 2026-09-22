@@ -14,7 +14,6 @@ import {
   IMG as DEFAULT_IMG,
 } from "./wedding";
 
-
 import type { ReligiousFormat } from "./religiousFormats";
 import type { TemplateId } from "./templates";
 
@@ -26,62 +25,46 @@ export interface WeddingData {
   city?: string;
   venueMain?: string;
 
-  groom?: Partial<
-    typeof DEFAULT_WEDDING.groom
-  > & {
+  groom?: Partial<typeof DEFAULT_WEDDING.groom> & {
     parentsEn?: string;
     bioEn?: string;
   };
 
-  bride?: Partial<
-    typeof DEFAULT_WEDDING.bride
-  > & {
+  bride?: Partial<typeof DEFAULT_WEDDING.bride> & {
     parentsEn?: string;
     bioEn?: string;
   };
 
-  quote?: Partial<
-    typeof DEFAULT_WEDDING.quote
-  > & {
+  quote?: Partial<typeof DEFAULT_WEDDING.quote> & {
     textEn?: string;
   };
 
   events?: Array<
-    Partial<
-      (typeof DEFAULT_WEDDING.events)[number]
-    > & {
+    Partial<(typeof DEFAULT_WEDDING.events)[number]> & {
       nameEn?: string;
       noteEn?: string;
     }
   >;
 
   story?: Array<
-    Partial<
-      (typeof DEFAULT_WEDDING.story)[number]
-    > & {
+    Partial<(typeof DEFAULT_WEDDING.story)[number]> & {
       titleEn?: string;
       textEn?: string;
     }
   >;
 
   gallery?: Array<
-    Partial<
-      (typeof DEFAULT_WEDDING.gallery)[number]
-    >
+    Partial<(typeof DEFAULT_WEDDING.gallery)[number]>
   >;
 
   gifts?: Array<
-    Partial<
-      (typeof DEFAULT_WEDDING.gifts)[number]
-    >
+    Partial<(typeof DEFAULT_WEDDING.gifts)[number]>
   >;
 
   giftAddress?: string;
 
   dresscode?: Array<
-    Partial<
-      (typeof DEFAULT_WEDDING.dresscode)[number]
-    >
+    Partial<(typeof DEFAULT_WEDDING.dresscode)[number]>
   >;
 
   photos?: Partial<typeof DEFAULT_IMG>;
@@ -98,122 +81,100 @@ export interface WeddingData {
 type SettingsRow = {
   id: string;
   user_id?: string | null;
- 
+  slug?: string | null;
   data?: WeddingData | null;
 };
 
 type RealtimePayload = {
-  eventType?:
-    | "INSERT"
-    | "UPDATE"
-    | "DELETE";
-
+  eventType?: "INSERT" | "UPDATE" | "DELETE";
   new?: SettingsRow;
   old?: SettingsRow;
 };
 
 export function useWeddingData(
   userId?: string | null,
- 
+  slug?: string | null
 ) {
-  const [data, setData] =
-    useState<WeddingData>({});
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] = useState<
-    string | null
-  >(null);
+  const [data, setData] = useState<WeddingData>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const storageKey = userId
     ? `wedding-data-${userId}`
     : "wedding-data-default";
 
-  const fetchData = useCallback(
-    async () => {
-      setLoading(true);
-      setError(null);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-      try {
-        if (SUPABASE_ENABLED && slug) {
-          const {
-            data: row,
-            error: fetchError,
-          } = await supabase
-            .from("settings")
-            .select("data")
-            .eq("slug", slug)
-            .maybeSingle();
+    try {
+      if (SUPABASE_ENABLED && slug) {
+        const {
+          data: row,
+          error: fetchError,
+        } = await supabase
+          .from("settings")
+          .select("data")
+          .eq("slug", slug)
+          .maybeSingle();
 
-          if (fetchError) {
-            throw fetchError;
-          }
-
-          if (!row) {
-            throw new Error(
-              "Data undangan tidak ditemukan untuk slug tersebut"
-            );
-          }
-
-          setData(
-            (row.data as WeddingData) || {}
-          );
-
-          return;
+        if (fetchError) {
+          throw fetchError;
         }
 
-        if (SUPABASE_ENABLED && userId) {
-          const {
-            data: row,
-            error: fetchError,
-          } = await supabase
-            .from("settings")
-            .select("data")
-            .eq("user_id", userId)
-            .maybeSingle();
-
-          if (fetchError) {
-            throw fetchError;
-          }
-
-          setData(
-            (row?.data as WeddingData) || {}
+        if (!row) {
+          throw new Error(
+            "Data undangan tidak ditemukan untuk slug tersebut"
           );
-
-          return;
         }
 
-        if (
-          typeof window !== "undefined"
-        ) {
-          const raw =
-            window.localStorage.getItem(
-              storageKey
-            );
-
-          setData(
-            raw
-              ? (JSON.parse(raw) as WeddingData)
-              : {}
-          );
-        } else {
-          setData({});
-        }
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Gagal memuat data undangan";
-
-        setError(message);
-        setData({});
-      } finally {
-        setLoading(false);
+        setData((row.data as WeddingData) || {});
+        return;
       }
-    },
-    [slug, storageKey, userId]
-  );
+
+      if (SUPABASE_ENABLED && userId) {
+        const {
+          data: row,
+          error: fetchError,
+        } = await supabase
+          .from("settings")
+          .select("data")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (fetchError) {
+          throw fetchError;
+        }
+
+        setData((row?.data as WeddingData) || {});
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        const raw = window.localStorage.getItem(storageKey);
+
+        setData(
+          raw
+            ? (JSON.parse(raw) as WeddingData)
+            : {}
+        );
+      } else {
+        setData({});
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Gagal memuat data undangan";
+
+      console.error("Gagal memuat data undangan:", err);
+
+      setError(message);
+      setData({});
+    } finally {
+      setLoading(false);
+    }
+  }, [slug, storageKey, userId]);
 
   useEffect(() => {
     void fetchData();
@@ -236,9 +197,7 @@ export function useWeddingData(
       : `user_id=eq.${userId}`;
 
     const channel = supabase
-      .channel(
-        `settings-changes-${targetKey}`
-      )
+      .channel(`settings-changes-${targetKey}`)
       .on(
         "postgres_changes",
         {
@@ -248,16 +207,12 @@ export function useWeddingData(
           filter,
         },
         (payload: RealtimePayload) => {
-          if (
-            payload.eventType === "DELETE"
-          ) {
+          if (payload.eventType === "DELETE") {
             setData({});
             return;
           }
 
-          setData(
-            payload.new?.data || {}
-          );
+          setData(payload.new?.data || {});
         }
       )
       .subscribe((status) => {
@@ -280,93 +235,89 @@ export function useWeddingData(
   }, [slug, userId]);
 
   const updateData = useCallback(
-  async (patch: WeddingData) => {
-    const merged: WeddingData = {
-      ...data,
-      ...patch,
-    };
+    async (patch: WeddingData) => {
+      const merged: WeddingData = {
+        ...data,
+        ...patch,
+      };
 
-    setData(merged);
-    setError(null);
+      setData(merged);
+      setError(null);
 
-    try {
-      if (SUPABASE_ENABLED && userId) {
-        const {
-          data: existingRows,
-          error: selectError,
-        } = await supabase
-          .from("settings")
-          .select("id")
-          .eq("user_id", userId)
-          .limit(1);
-
-        if (selectError) {
-          throw selectError;
-        }
-
-        const existingRow =
-          existingRows?.[0];
-
-        if (existingRow) {
+      try {
+        if (SUPABASE_ENABLED && userId) {
           const {
-            error: updateError,
+            data: existingRows,
+            error: selectError,
           } = await supabase
             .from("settings")
-            .update({
-              data: merged,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existingRow.id);
+            .select("id")
+            .eq("user_id", userId)
+            .limit(1);
 
-          if (updateError) {
-            throw updateError;
+          if (selectError) {
+            throw selectError;
           }
-        } else {
-          const {
-            error: insertError,
-          } = await supabase
-            .from("settings")
-            .insert({
-              user_id: userId,
-              data: merged,
-            });
 
-          if (insertError) {
-            throw insertError;
+          const existingRow = existingRows?.[0];
+
+          if (existingRow) {
+            const {
+              error: updateError,
+            } = await supabase
+              .from("settings")
+              .update({
+                data: merged,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existingRow.id);
+
+            if (updateError) {
+              throw updateError;
+            }
+          } else {
+            const {
+              error: insertError,
+            } = await supabase
+              .from("settings")
+              .insert({
+                user_id: userId,
+                data: merged,
+              });
+
+            if (insertError) {
+              throw insertError;
+            }
           }
+
+          return;
         }
 
-        return;
-      }
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            storageKey,
+            JSON.stringify(merged)
+          );
+        }
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Gagal menyimpan data undangan";
 
-      if (
-        typeof window !== "undefined"
-      ) {
-        window.localStorage.setItem(
-          storageKey,
-          JSON.stringify(merged)
+        console.error(
+          "Gagal menyimpan wedding data:",
+          err
         );
+
+        setError(message);
+        throw err;
       }
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Gagal menyimpan data undangan";
+    },
+    [data, storageKey, userId]
+  );
 
-      console.error(
-        "Gagal menyimpan wedding data:",
-        err
-      );
-
-      setError(message);
-      throw err;
-    }
-  },
-  [data, storageKey, userId]
-);
-
-  const mergedData =
-    mergeWithDefaults(data);
+  const mergedData = mergeWithDefaults(data);
 
   return {
     data,
@@ -426,47 +377,35 @@ function mergeWithDefaults(
     },
 
     events: data.events?.length
-      ? data.events.map(
-          (event, index) => ({
-            ...(DEFAULT_WEDDING.events[
-              index
-            ] || DEFAULT_WEDDING.events[0]),
-            ...event,
-          })
-        )
+      ? data.events.map((event, index) => ({
+          ...(DEFAULT_WEDDING.events[index] ||
+            DEFAULT_WEDDING.events[0]),
+          ...event,
+        }))
       : DEFAULT_WEDDING.events,
 
     story: data.story?.length
-      ? data.story.map(
-          (storyItem, index) => ({
-            ...(DEFAULT_WEDDING.story[
-              index
-            ] || DEFAULT_WEDDING.story[0]),
-            ...storyItem,
-          })
-        )
+      ? data.story.map((storyItem, index) => ({
+          ...(DEFAULT_WEDDING.story[index] ||
+            DEFAULT_WEDDING.story[0]),
+          ...storyItem,
+        }))
       : DEFAULT_WEDDING.story,
 
     gallery: data.gallery?.length
-      ? data.gallery.map(
-          (galleryItem, index) => ({
-            ...(DEFAULT_WEDDING.gallery[
-              index
-            ] || DEFAULT_WEDDING.gallery[0]),
-            ...galleryItem,
-          })
-        )
+      ? data.gallery.map((galleryItem, index) => ({
+          ...(DEFAULT_WEDDING.gallery[index] ||
+            DEFAULT_WEDDING.gallery[0]),
+          ...galleryItem,
+        }))
       : DEFAULT_WEDDING.gallery,
 
     gifts: data.gifts?.length
-      ? data.gifts.map(
-          (gift, index) => ({
-            ...(DEFAULT_WEDDING.gifts[
-              index
-            ] || DEFAULT_WEDDING.gifts[0]),
-            ...gift,
-          })
-        )
+      ? data.gifts.map((gift, index) => ({
+          ...(DEFAULT_WEDDING.gifts[index] ||
+            DEFAULT_WEDDING.gifts[0]),
+          ...gift,
+        }))
       : DEFAULT_WEDDING.gifts,
 
     giftAddress:
@@ -474,15 +413,11 @@ function mergeWithDefaults(
       DEFAULT_WEDDING.giftAddress,
 
     dresscode: data.dresscode?.length
-      ? data.dresscode.map(
-          (dresscodeItem, index) => ({
-            ...(DEFAULT_WEDDING.dresscode[
-              index
-            ] ||
-              DEFAULT_WEDDING.dresscode[0]),
-            ...dresscodeItem,
-          })
-        )
+      ? data.dresscode.map((dresscodeItem, index) => ({
+          ...(DEFAULT_WEDDING.dresscode[index] ||
+            DEFAULT_WEDDING.dresscode[0]),
+          ...dresscodeItem,
+        }))
       : DEFAULT_WEDDING.dresscode,
 
     photos: {
@@ -490,9 +425,7 @@ function mergeWithDefaults(
       ...data.photos,
     },
 
-    religiousFormat:
-      data.religiousFormat,
-
+    religiousFormat: data.religiousFormat,
     language: data.language,
   };
 }
