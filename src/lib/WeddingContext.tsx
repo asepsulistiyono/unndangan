@@ -43,7 +43,14 @@ import {
 } from "./templates";
 
 interface WeddingContextType {
-  data: WeddingData;
+  /*
+   * data sekarang menggunakan mergedData,
+   * sehingga quote default tetap tersedia
+   * meskipun database memiliki quote: null.
+   */
+  data: typeof DEFAULT_WEDDING & {
+    photos: any;
+  };
 
   mergedData: typeof DEFAULT_WEDDING & {
     photos: any;
@@ -93,16 +100,19 @@ function getSlugFromHash(): string | null {
     return null;
   }
 
-  const slug = hash
+  const rawSlug = hash
     .replace(/^#\//, "")
     .split("?")[0]
     .split("/")[0]
     .trim();
 
-  if (!slug) {
+  if (!rawSlug) {
     return null;
   }
 
+  /*
+   * Route berikut bukan slug undangan.
+   */
   const ignoredRoutes = [
     "admin",
     "login",
@@ -114,16 +124,16 @@ function getSlugFromHash(): string | null {
 
   if (
     ignoredRoutes.includes(
-      slug.toLowerCase()
+      rawSlug.toLowerCase()
     )
   ) {
     return null;
   }
 
   try {
-    return decodeURIComponent(slug);
+    return decodeURIComponent(rawSlug);
   } catch {
-    return slug;
+    return rawSlug;
   }
 }
 
@@ -137,8 +147,10 @@ export function WeddingProvider({
   slug?: string | null;
 }) {
   /*
-   * Jika App.tsx mengirim slug, gunakan slug tersebut.
-   * Jika tidak, otomatis ambil dari URL hash.
+   * Jika slug diberikan oleh App.tsx,
+   * gunakan nilai tersebut.
+
+   * Jika tidak, ambil slug dari URL hash.
    */
   const effectiveSlug =
     slug?.trim() || getSlugFromHash();
@@ -193,8 +205,28 @@ export function WeddingProvider({
     return idText;
   };
 
+  /*
+   * Gunakan mergedData sebagai data utama.
+   *
+   * Sebelumnya:
+   * data: weddingData.data
+   *
+   * Masalahnya, jika database memiliki:
+   * quote: null
+   *
+   * maka komponen mendapatkan quote null.
+   *
+   * Sekarang:
+   * data: weddingData.mergedData
+   *
+   * sehingga data.quote selalu memiliki
+   * fallback dari DEFAULT_WEDDING.quote.
+   */
   const value: WeddingContextType = {
     ...weddingData,
+
+    data: weddingData.mergedData,
+
     theme,
     language,
     t,
