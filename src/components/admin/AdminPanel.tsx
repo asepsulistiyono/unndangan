@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useWedding } from "../../lib/WeddingContext";
 import { signOut, type AdminProfile } from "../../lib/auth";
-import { generateSlug, saveSlugMapping } from "../../lib/slug";
 import { Monogram } from "../Decor";
 import { IconArrowLeft, IconCheck, IconClose, IconPencil, IconTrash, IconUsers } from "../Icons";
 import FieldEditor from "./FieldEditor";
@@ -30,24 +29,18 @@ export default function AdminPanel({ profile, userName }: { profile: AdminProfil
 
   try {
     await updateData(patch);
+    await refetch();
 
-    /**
-     * Gunakan nilai terbaru dari patch.
-     * Jangan membaca localStorage karena ketika
-     * Supabase aktif, data utama berada di database.
-     */
-    const groomName =
-      patch.groom?.short ??
-      mergedData.groom.short;
-
-    const brideName =
-      patch.bride?.short ??
-      mergedData.bride.short;
-
-    const slug = generateSlug(
-      groomName,
-      brideName
+    showToast("Perubahan tersimpan");
+  } catch (err: any) {
+    showToast(
+      "Gagal menyimpan: " +
+        (err?.message || "Terjadi kesalahan")
     );
+  } finally {
+    setSaving(false);
+  }
+};
 
     if (profile?.user_id) {
       saveSlugMapping(
