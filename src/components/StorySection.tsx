@@ -1,84 +1,169 @@
 import "./StorySection.css";
-
 import { useWedding } from "../lib/WeddingContext";
 
 type StoryItem = {
-  year?: string;
+  id?: string | number;
+  year?: string | number;
+  date?: string;
   title?: string;
-  titleEn?: string;
+  name?: string;
+  description?: string;
+  content?: string;
   text?: string;
-  textEn?: string;
 };
 
-export default function StorySection() {
-  const {
-    data,
-    language,
-  } = useWedding();
+type StoryData = {
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  items?: StoryItem[];
+};
 
-  const storyItems =
-    Array.isArray(data.story)
-      ? (data.story as StoryItem[])
-      : [];
+function normalizeStories(value: unknown): StoryItem[] {
+  if (Array.isArray(value)) {
+    return value as StoryItem[];
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as StoryData).items)
+  ) {
+    return (value as StoryData).items || [];
+  }
+
+  return [];
+}
+
+export default function StorySection() {
+  const { mergedData } = useWedding();
+
+  const weddingData = mergedData as Record<
+    string,
+    unknown
+  > | null;
+
+  const rawStory =
+    weddingData?.story ??
+    weddingData?.stories ??
+    weddingData?.loveStory ??
+    weddingData?.love_story;
+
+  const storyObject =
+    rawStory &&
+    typeof rawStory === "object" &&
+    !Array.isArray(rawStory)
+      ? (rawStory as StoryData)
+      : null;
+
+  const stories = normalizeStories(rawStory);
+
+  const sectionTitle =
+    storyObject?.title ||
+    "Kisah Kami";
+
+  const sectionDescription =
+    storyObject?.description ||
+    storyObject?.subtitle ||
+    "Setiap pertemuan memiliki cerita, dan setiap cerita membawa kami sampai di hari ini.";
 
   return (
     <section
       id="story"
       className="story-section"
+      aria-labelledby="story-title"
     >
-      <div className="story-heading">
-        <p className="story-eyebrow">
-          {language === "en"
-            ? "Our Story"
-            : "Our Story"}
-        </p>
+      <div className="story-background-glow story-background-glow-left" />
+      <div className="story-background-glow story-background-glow-right" />
 
-        <h2>
-          {language === "en"
-            ? "Our Story"
-            : "Kisah Kami"}
-        </h2>
+      <div className="story-inner">
+        <header className="story-header">
+          <span className="story-eyebrow">
+            Perjalanan Cinta
+          </span>
 
-        <p className="story-description">
-          {language === "en"
-            ? "Four chapters that brought us to the altar — from an unexpected meeting to the vows we are about to make."
-            : "Empat bab yang membawa kami ke altar — dari pertemuan yang tak disengaja hingga janji yang akan segera diikrarkan."}
-        </p>
-      </div>
+          <h2 id="story-title">
+            {sectionTitle}
+          </h2>
 
-      <div className="story-list">
-        {storyItems.map(
-          (item, index) => {
-            const title =
-              language === "en"
-                ? item.titleEn ||
-                  item.title ||
-                  ""
-                : item.title || "";
+          <span className="story-divider">
+            <span />
+            <i>✦</i>
+            <span />
+          </span>
 
-            const text =
-              language === "en"
-                ? item.textEn ||
-                  item.text ||
-                  ""
-                : item.text || "";
+          <p>{sectionDescription}</p>
+        </header>
 
-            return (
-              <article
-                className="story-card"
-                key={`story-${item.year || index}-${index}`}
-              >
-                <div className="story-year">
-                  {item.year || ""}
-                </div>
+        {stories.length > 0 ? (
+          <div className="story-timeline">
+            {stories.map((story, index) => {
+              const title =
+                story.title ||
+                story.name ||
+                `Cerita ${index + 1}`;
 
-                <div className="story-card-content">
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                </div>
-              </article>
-            );
-          }
+              const year =
+                story.year ||
+                story.date ||
+                "";
+
+              const description =
+                story.description ||
+                story.content ||
+                story.text ||
+                "";
+
+              return (
+                <article
+                  key={
+                    story.id ||
+                    `${title}-${index}`
+                  }
+                  className={`story-item ${
+                    index % 2 === 0
+                      ? "story-item-left"
+                      : "story-item-right"
+                  }`}
+                >
+                  <div className="story-item-side">
+                    <span className="story-year">
+                      {year}
+                    </span>
+                  </div>
+
+                  <div className="story-dot">
+                    <span />
+                  </div>
+
+                  <div className="story-card">
+                    <div className="story-card-border">
+                      <span className="story-card-corner top-left" />
+                      <span className="story-card-corner top-right" />
+                      <span className="story-card-corner bottom-left" />
+                      <span className="story-card-corner bottom-right" />
+
+                      <h3>{title}</h3>
+
+                      {description && (
+                        <p>{description}</p>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="story-empty">
+            <span className="story-empty-symbol">
+              ✦
+            </span>
+
+            <p>
+              Kisah indah kami akan segera ditambahkan.
+            </p>
+          </div>
         )}
       </div>
     </section>
