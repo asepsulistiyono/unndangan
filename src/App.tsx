@@ -1,5 +1,5 @@
-import StorySection from "./components/StorySection";
 import { useEffect, useState } from "react";
+
 import Cover from "./components/Cover";
 import Nav from "./components/Nav";
 import { Petals } from "./components/Decor";
@@ -7,11 +7,11 @@ import { Petals } from "./components/Decor";
 import Hero from "./components/sections/Hero";
 import Couple from "./components/sections/Couple";
 import Events from "./components/sections/Events";
-import Story from "./components/sections/Story";
 import Gallery from "./components/sections/Gallery";
 import Gift from "./components/sections/Gift";
 import Wishes from "./components/sections/Wishes";
 import Closing from "./components/sections/Closing";
+import StorySection from "./components/StorySection";
 
 import GuestManager from "./components/GuestManager";
 import AdminLogin from "./components/admin/AdminLogin";
@@ -117,18 +117,8 @@ function GuestManagerWithSlug() {
 }
 
 function App() {
-  return (
-    <>
-      <HeroSection />
-
-      <StorySection />
-
-      <GallerySection />
-    </>
-  );
-}
-
-export default App;
+  const [stage, setStage] =
+    useState<Stage>("closed");
 
   const [route, setRoute] = useState(
     () => window.location.hash
@@ -469,12 +459,19 @@ export default App;
             aria-hidden={stage !== "open"}
           >
             <Hero open={stage === "open"} />
+
             <Couple />
+
             <Events />
-            <Story />
+
+            <StorySection />
+
             <Gallery />
+
             <Gift />
+
             <Wishes />
+
             <Closing />
           </main>
 
@@ -484,3 +481,5 @@ export default App;
     </WeddingProvider>
   );
 }
+
+export default App;
