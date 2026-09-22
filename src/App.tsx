@@ -116,6 +116,21 @@ function GuestManagerWithSlug() {
   );
 }
 
+
+function App() {
+  return (
+    <>
+      <HeroSection />
+
+      <StorySection />
+
+      <GallerySection />
+    </>
+  );
+}
+
+export default App;
+
 export default function App() {
   const [stage, setStage] =
     useState<Stage>("closed");
