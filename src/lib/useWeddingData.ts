@@ -14,12 +14,11 @@ import {
   IMG as DEFAULT_IMG,
 } from "./wedding";
 
+import { generateSlug } from "./slug";
+
 import type { ReligiousFormat } from "./religiousFormats";
 import type { TemplateId } from "./templates";
 
-/**
- * Tipe data undangan yang disimpan di database.
- */
 export interface WeddingData {
   initials?: string;
   dateLabel?: string;
@@ -114,10 +113,6 @@ type RealtimePayload = {
   old?: SettingsRow;
 };
 
-/**
- * Hook untuk mengambil dan menyimpan data undangan
- * berdasarkan user ID atau slug.
- */
 export function useWeddingData(
   userId?: string | null,
   slug?: string | null
@@ -136,9 +131,6 @@ export function useWeddingData(
     ? `wedding-data-${userId}`
     : "wedding-data-default";
 
-  /**
-   * Mengambil data awal.
-   */
   const fetchData = useCallback(
     async () => {
       setLoading(true);
@@ -159,8 +151,14 @@ export function useWeddingData(
             throw fetchError;
           }
 
+          if (!row) {
+            throw new Error(
+              "Data undangan tidak ditemukan untuk slug tersebut"
+            );
+          }
+
           setData(
-            (row?.data as WeddingData) || {}
+            (row.data as WeddingData) || {}
           );
 
           return;
@@ -218,16 +216,10 @@ export function useWeddingData(
     [slug, storageKey, userId]
   );
 
-  /**
-   * Memuat ulang data ketika user atau slug berubah.
-   */
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
 
-  /**
-   * Subscription Realtime tunggal untuk settings.
-   */
   useEffect(() => {
     if (
       !SUPABASE_ENABLED ||
@@ -288,15 +280,26 @@ export function useWeddingData(
     };
   }, [slug, userId]);
 
-  /**
-   * Menyimpan perubahan data undangan.
-   */
   const updateData = useCallback(
     async (patch: WeddingData) => {
       const merged: WeddingData = {
         ...data,
         ...patch,
       };
+
+      /**
+       * Slug selalu dibuat dari nama terbaru.
+       * Dengan cara ini, kolom settings.slug
+       * tetap sinkron dengan URL undangan.
+       */
+      const nextSlug =
+        merged.groom?.short &&
+        merged.bride?.short
+          ? generateSlug(
+              merged.groom.short,
+              merged.bride.short
+            )
+          : undefined;
 
       setData(merged);
       setError(null);
@@ -328,11 +331,10 @@ export function useWeddingData(
               data: merged,
               updated_at:
                 new Date().toISOString(),
+              ...(nextSlug
+                ? { slug: nextSlug }
+                : {}),
             };
-
-            if (slug) {
-              updatePayload.slug = slug;
-            }
 
             const {
               error: updateError,
@@ -352,11 +354,10 @@ export function useWeddingData(
             } = {
               user_id: userId,
               data: merged,
+              ...(nextSlug
+                ? { slug: nextSlug }
+                : {}),
             };
-
-            if (slug) {
-              insertPayload.slug = slug;
-            }
 
             const {
               error: insertError,
@@ -390,7 +391,7 @@ export function useWeddingData(
         throw err;
       }
     },
-    [data, slug, storageKey, userId]
+    [data, storageKey, userId]
   );
 
   const mergedData =
@@ -406,10 +407,6 @@ export function useWeddingData(
   };
 }
 
-/**
- * Menggabungkan data database dengan
- * data default dari wedding.ts.
- */
 function mergeWithDefaults(
   data: WeddingData
 ): typeof DEFAULT_WEDDING & {
