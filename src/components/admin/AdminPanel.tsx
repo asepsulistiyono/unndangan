@@ -70,27 +70,27 @@ export default function AdminPanel({
   };
 
   const handleSave = async (patch: any) => {
-  setSaving(true);
+    setSaving(true);
 
-  try {
-    await updateData(patch);
-    await refetch();
+    try {
+      await updateData(patch);
+      await refetch();
 
-    showToast("Perubahan tersimpan");
-  } catch (err: any) {
-    console.error(
-      "AdminPanel gagal menyimpan:",
-      err
-    );
+      showToast("Perubahan tersimpan");
+    } catch (err: any) {
+      console.error(
+        "AdminPanel gagal menyimpan:",
+        err
+      );
 
-    showToast(
-      "Gagal menyimpan: " +
-        (err?.message || "Terjadi kesalahan")
-    );
-  } finally {
-    setSaving(false);
-  }
-};
+      showToast(
+        "Gagal menyimpan: " +
+          (err?.message || "Terjadi kesalahan")
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
     try {
       /**
