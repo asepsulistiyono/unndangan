@@ -91,16 +91,53 @@ type RealtimePayload = {
   old?: SettingsRow;
 };
 
+function normalizeValue(
+  value?: string | null
+): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim();
+
+  return normalized || null;
+}
+
+function normalizeWeddingData(
+  value: unknown
+): WeddingData {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return {};
+  }
+
+  return value as WeddingData;
+}
+
 export function useWeddingData(
   userId?: string | null,
   slug?: string | null
 ) {
-  const [data, setData] = useState<WeddingData>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const normalizedUserId =
+    normalizeValue(userId);
 
-  const storageKey = userId
-    ? `wedding-data-${userId}`
+  const normalizedSlug =
+    normalizeValue(slug);
+
+  const [data, setData] =
+    useState<WeddingData>({});
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const storageKey = normalizedUserId
+    ? `wedding-data-${normalizedUserId}`
     : "wedding-data-default";
 
   const fetchData = useCallback(async () => {
@@ -108,14 +145,24 @@ export function useWeddingData(
     setError(null);
 
     try {
-      if (SUPABASE_ENABLED && slug) {
+      /*
+       * PUBLIC PAGE
+       *
+       * Halaman publik menggunakan slug.
+       * Contoh:
+       * #/romeo_dan_juliaet
+       */
+      if (
+        SUPABASE_ENABLED &&
+        normalizedSlug
+      ) {
         const {
           data: row,
           error: fetchError,
         } = await supabase
           .from("settings")
-          .select("data")
-          .eq("slug", slug)
+          .select("id, user_id, slug, data")
+          .eq("slug", normalizedSlug)
           .maybeSingle();
 
         if (fetchError) {
@@ -124,77 +171,165 @@ export function useWeddingData(
 
         if (!row) {
           throw new Error(
-            "Data undangan tidak ditemukan untuk slug tersebut"
+            `Data undangan dengan slug "${normalizedSlug}" tidak ditemukan`
           );
         }
 
-        setData((row.data as WeddingData) || {});
+        const settingsRow =
+          row as SettingsRow;
+
+        const weddingData =
+          normalizeWeddingData(
+            settingsRow.data
+          );
+
+        console.log(
+          "[WeddingData] Data publik berhasil dimuat",
+          {
+            slug: settingsRow.slug,
+            storyCount:
+              weddingData.story?.length || 0,
+            hasQuote:
+              Boolean(weddingData.quote),
+            quoteText:
+              weddingData.quote?.text || null,
+          }
+        );
+
+        setData(weddingData);
         return;
       }
 
-      if (SUPABASE_ENABLED && userId) {
+      /*
+       * ADMIN PAGE
+       *
+       * Halaman admin menggunakan user_id.
+       */
+      if (
+        SUPABASE_ENABLED &&
+        normalizedUserId
+      ) {
         const {
-          data: row,
-          error: fetchError,
+          data: rows,
+          error: selectError,
         } = await supabase
           .from("settings")
-          .select("data")
-          .eq("user_id", userId)
-          .maybeSingle();
+          .select("id, user_id, slug, data")
+          .eq("user_id", normalizedUserId)
+          .limit(1);
 
-        if (fetchError) {
-          throw fetchError;
+        if (selectError) {
+          throw selectError;
         }
 
-        setData((row?.data as WeddingData) || {});
+        const row =
+          rows?.[0] as SettingsRow | undefined;
+
+        const weddingData =
+          normalizeWeddingData(row?.data);
+
+        console.log(
+          "[WeddingData] Data admin berhasil dimuat",
+          {
+            slug: row?.slug || null,
+            storyCount:
+              weddingData.story?.length || 0,
+            hasQuote:
+              Boolean(weddingData.quote),
+            quoteText:
+              weddingData.quote?.text || null,
+          }
+        );
+
+        setData(weddingData);
         return;
       }
 
-      if (typeof window !== "undefined") {
-        const raw = window.localStorage.getItem(storageKey);
+      /*
+       * LOCAL STORAGE FALLBACK
+       */
+      if (
+        typeof window !== "undefined"
+      ) {
+        const raw =
+          window.localStorage.getItem(
+            storageKey
+          );
 
-        setData(
-          raw
-            ? (JSON.parse(raw) as WeddingData)
-            : {}
-        );
-      } else {
-        setData({});
+        if (!raw) {
+          setData({});
+          return;
+        }
+
+        try {
+          const parsed =
+            JSON.parse(raw);
+
+          setData(
+            normalizeWeddingData(parsed)
+          );
+        } catch (parseError) {
+          console.error(
+            "[WeddingData] LocalStorage rusak:",
+            parseError
+          );
+
+          window.localStorage.removeItem(
+            storageKey
+          );
+
+          setData({});
+        }
+
+        return;
       }
+
+      setData({});
     } catch (err: unknown) {
       const message =
         err instanceof Error
           ? err.message
           : "Gagal memuat data undangan";
 
-      console.error("Gagal memuat data undangan:", err);
+      console.error(
+        "[WeddingData] Gagal memuat data:",
+        err
+      );
 
       setError(message);
       setData({});
     } finally {
       setLoading(false);
     }
-  }, [slug, storageKey, userId]);
+  }, [
+    normalizedSlug,
+    normalizedUserId,
+    storageKey,
+  ]);
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
 
+  /*
+   * REALTIME SUBSCRIPTION
+   */
   useEffect(() => {
     if (
       !SUPABASE_ENABLED ||
-      (!userId && !slug)
+      (!normalizedUserId &&
+        !normalizedSlug)
     ) {
       return;
     }
 
-    const targetKey = slug
-      ? `slug-${slug}`
-      : `user-${userId}`;
+    const targetKey = normalizedSlug
+      ? `slug-${normalizedSlug}`
+      : `user-${normalizedUserId}`;
 
-    const filter = slug
-      ? `slug=eq.${slug}`
-      : `user_id=eq.${userId}`;
+    const filter = normalizedSlug
+      ? `slug=eq.${normalizedSlug}`
+      : `user_id=eq.${normalizedUserId}`;
 
     const channel = supabase
       .channel(`settings-changes-${targetKey}`)
@@ -206,34 +341,67 @@ export function useWeddingData(
           table: "settings",
           filter,
         },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === "DELETE") {
+        (payload) => {
+          const realtimePayload =
+            payload as RealtimePayload;
+
+          if (
+            realtimePayload.eventType ===
+            "DELETE"
+          ) {
             setData({});
             return;
           }
 
-          setData(payload.new?.data || {});
+          if (
+            realtimePayload.new?.data
+          ) {
+            setData(
+              normalizeWeddingData(
+                realtimePayload.new.data
+              )
+            );
+          }
         }
       )
       .subscribe((status) => {
-        if (status === "CHANNEL_ERROR") {
-          console.error(
-            "Gagal berlangganan perubahan Realtime tabel settings"
+        if (status === "SUBSCRIBED") {
+          console.log(
+            "[WeddingData] Realtime aktif:",
+            targetKey
           );
         }
 
-        if (status === "TIMED_OUT") {
+        if (
+          status === "CHANNEL_ERROR"
+        ) {
           console.error(
-            "Subscription Realtime tabel settings mengalami timeout"
+            "[WeddingData] Realtime mengalami error"
+          );
+        }
+
+        if (
+          status === "TIMED_OUT"
+        ) {
+          console.error(
+            "[WeddingData] Realtime mengalami timeout"
           );
         }
       });
 
     return () => {
-      void supabase.removeChannel(channel);
+      void supabase.removeChannel(
+        channel
+      );
     };
-  }, [slug, userId]);
+  }, [
+    normalizedSlug,
+    normalizedUserId,
+  ]);
 
+  /*
+   * UPDATE DATA
+   */
   const updateData = useCallback(
     async (patch: WeddingData) => {
       const merged: WeddingData = {
@@ -245,30 +413,40 @@ export function useWeddingData(
       setError(null);
 
       try {
-        if (SUPABASE_ENABLED && userId) {
+        /*
+         * SIMPAN KE SUPABASE UNTUK ADMIN
+         */
+        if (
+          SUPABASE_ENABLED &&
+          normalizedUserId
+        ) {
           const {
-            data: existingRows,
+            data: rows,
             error: selectError,
           } = await supabase
             .from("settings")
             .select("id")
-            .eq("user_id", userId)
+            .eq("user_id", normalizedUserId)
             .limit(1);
 
           if (selectError) {
             throw selectError;
           }
 
-          const existingRow = existingRows?.[0];
+          const existingRow =
+            rows?.[0] as
+              | { id: string }
+              | undefined;
 
-          if (existingRow) {
+          if (existingRow?.id) {
             const {
               error: updateError,
             } = await supabase
               .from("settings")
               .update({
                 data: merged,
-                updated_at: new Date().toISOString(),
+                updated_at:
+                  new Date().toISOString(),
               })
               .eq("id", existingRow.id);
 
@@ -281,8 +459,10 @@ export function useWeddingData(
             } = await supabase
               .from("settings")
               .insert({
-                user_id: userId,
+                user_id: normalizedUserId,
                 data: merged,
+                updated_at:
+                  new Date().toISOString(),
               });
 
             if (insertError) {
@@ -290,10 +470,19 @@ export function useWeddingData(
             }
           }
 
+          console.log(
+            "[WeddingData] Data berhasil disimpan ke Supabase"
+          );
+
           return;
         }
 
-        if (typeof window !== "undefined") {
+        /*
+         * SIMPAN KE LOCAL STORAGE
+         */
+        if (
+          typeof window !== "undefined"
+        ) {
           window.localStorage.setItem(
             storageKey,
             JSON.stringify(merged)
@@ -306,7 +495,7 @@ export function useWeddingData(
             : "Gagal menyimpan data undangan";
 
         console.error(
-          "Gagal menyimpan wedding data:",
+          "[WeddingData] Gagal menyimpan data:",
           err
         );
 
@@ -314,10 +503,19 @@ export function useWeddingData(
         throw err;
       }
     },
-    [data, storageKey, userId]
+    [
+      data,
+      normalizedUserId,
+      storageKey,
+    ]
   );
 
-  const mergedData = mergeWithDefaults(data);
+  /*
+   * Data yang dikembalikan selalu memiliki
+   * struktur default lengkap.
+   */
+  const mergedData =
+    mergeWithDefaults(data);
 
   return {
     data,
@@ -335,6 +533,10 @@ function mergeWithDefaults(
   photos: typeof DEFAULT_IMG;
   religiousFormat?: ReligiousFormat;
   language?: "id" | "en";
+  themeId?: string;
+  ornamentId?: string;
+  customOrnament?: string;
+  templateId?: TemplateId;
 } {
   return {
     initials:
@@ -363,49 +565,75 @@ function mergeWithDefaults(
 
     groom: {
       ...DEFAULT_WEDDING.groom,
-      ...data.groom,
+      ...(data.groom || {}),
     },
 
     bride: {
       ...DEFAULT_WEDDING.bride,
-      ...data.bride,
+      ...(data.bride || {}),
     },
 
-    quote: {
-      ...DEFAULT_WEDDING.quote,
-      ...data.quote,
-    },
+    /*
+     * PERBAIKAN KUTIPAN
+     *
+     * Jika data.quote null atau belum ada
+     * di database, gunakan quote default.
+     */
+    quote: data.quote
+      ? {
+          ...DEFAULT_WEDDING.quote,
+          ...data.quote,
+        }
+      : {
+          ...DEFAULT_WEDDING.quote,
+        },
 
     events: data.events?.length
-      ? data.events.map((event, index) => ({
-          ...(DEFAULT_WEDDING.events[index] ||
-            DEFAULT_WEDDING.events[0]),
-          ...event,
-        }))
+      ? data.events.map(
+          (event, index) => ({
+            ...(DEFAULT_WEDDING.events[
+              index
+            ] ||
+              DEFAULT_WEDDING.events[0]),
+            ...event,
+          })
+        )
       : DEFAULT_WEDDING.events,
 
     story: data.story?.length
-      ? data.story.map((storyItem, index) => ({
-          ...(DEFAULT_WEDDING.story[index] ||
-            DEFAULT_WEDDING.story[0]),
-          ...storyItem,
-        }))
+      ? data.story.map(
+          (storyItem, index) => ({
+            ...(DEFAULT_WEDDING.story[
+              index
+            ] ||
+              DEFAULT_WEDDING.story[0]),
+            ...storyItem,
+          })
+        )
       : DEFAULT_WEDDING.story,
 
     gallery: data.gallery?.length
-      ? data.gallery.map((galleryItem, index) => ({
-          ...(DEFAULT_WEDDING.gallery[index] ||
-            DEFAULT_WEDDING.gallery[0]),
-          ...galleryItem,
-        }))
+      ? data.gallery.map(
+          (galleryItem, index) => ({
+            ...(DEFAULT_WEDDING.gallery[
+              index
+            ] ||
+              DEFAULT_WEDDING.gallery[0]),
+            ...galleryItem,
+          })
+        )
       : DEFAULT_WEDDING.gallery,
 
     gifts: data.gifts?.length
-      ? data.gifts.map((gift, index) => ({
-          ...(DEFAULT_WEDDING.gifts[index] ||
-            DEFAULT_WEDDING.gifts[0]),
-          ...gift,
-        }))
+      ? data.gifts.map(
+          (gift, index) => ({
+            ...(DEFAULT_WEDDING.gifts[
+              index
+            ] ||
+              DEFAULT_WEDDING.gifts[0]),
+            ...gift,
+          })
+        )
       : DEFAULT_WEDDING.gifts,
 
     giftAddress:
@@ -413,19 +641,27 @@ function mergeWithDefaults(
       DEFAULT_WEDDING.giftAddress,
 
     dresscode: data.dresscode?.length
-      ? data.dresscode.map((dresscodeItem, index) => ({
-          ...(DEFAULT_WEDDING.dresscode[index] ||
-            DEFAULT_WEDDING.dresscode[0]),
-          ...dresscodeItem,
-        }))
+      ? data.dresscode.map(
+          (dresscodeItem, index) => ({
+            ...(DEFAULT_WEDDING.dresscode[
+              index
+            ] ||
+              DEFAULT_WEDDING.dresscode[0]),
+            ...dresscodeItem,
+          })
+        )
       : DEFAULT_WEDDING.dresscode,
 
     photos: {
       ...DEFAULT_IMG,
-      ...data.photos,
+      ...(data.photos || {}),
     },
 
+    themeId: data.themeId,
+    ornamentId: data.ornamentId,
+    customOrnament: data.customOrnament,
     religiousFormat: data.religiousFormat,
     language: data.language,
+    templateId: data.templateId,
   };
 }
