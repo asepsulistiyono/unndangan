@@ -1,5 +1,5 @@
+import StorySection from "./components/StorySection";
 import { useEffect, useState } from "react";
-
 import Cover from "./components/Cover";
 import Nav from "./components/Nav";
 import { Petals } from "./components/Decor";
