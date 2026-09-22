@@ -43,7 +43,7 @@ type AdminPanelProps = {
 };
 
 export default function AdminPanel({
-  profile,
+  profile: _profile,
   userName,
 }: AdminPanelProps) {
   const {
@@ -92,31 +92,6 @@ export default function AdminPanel({
     }
   };
 
-    try {
-      /**
-       * updateData akan menyimpan data berdasarkan user_id.
-       * Kolom slug tidak dikirim dari frontend karena
-       * slug merupakan generated column di database.
-       */
-      await updateData(patch);
-
-      /**
-       * Ambil data terbaru agar tampilan admin langsung
-       * mengikuti data terakhir dari Supabase.
-       */
-      await refetch();
-
-      showToast("Perubahan tersimpan");
-    } catch (err: any) {
-      showToast(
-        "Gagal menyimpan: " +
-          (err?.message || "Terjadi kesalahan")
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const invitationSlug = generateSlug(
     mergedData.groom.short,
     mergedData.bride.short
@@ -124,8 +99,6 @@ export default function AdminPanel({
 
   const invitationUrl =
     `${window.location.origin}/#/${invitationSlug}`;
-
-  const invitationUrl = `${window.location.origin}/#/${invitationSlug}`;
 
   const tabs: {
     id: Tab;
@@ -236,7 +209,9 @@ export default function AdminPanel({
 
             <button
               type="button"
-              onClick={() => signOut()}
+              onClick={() => {
+                void signOut();
+              }}
               className="border border-rose-400/30 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-300 transition-colors hover:bg-rose-400 hover:text-pine-950"
             >
               Keluar
@@ -390,10 +365,6 @@ export default function AdminPanel({
     </div>
   );
 }
-
-/* ============================================================
-   TAB: PENGANTIN
-============================================================ */
 
 function PengantinTab({
   mergedData,
@@ -617,10 +588,6 @@ function PengantinTab({
     </div>
   );
 }
-
-/* ============================================================
-   TAB: ACARA
-============================================================ */
 
 function AcaraTab({
   mergedData,
@@ -850,10 +817,6 @@ function AcaraTab({
   );
 }
 
-/* ============================================================
-   TAB: KUTIPAN
-============================================================ */
-
 function KutipanTab({
   mergedData,
   onSave,
@@ -907,10 +870,6 @@ function KutipanTab({
     </div>
   );
 }
-
-/* ============================================================
-   TAB: KISAH
-============================================================ */
 
 function KisahTab({
   mergedData,
@@ -996,10 +955,6 @@ function KisahTab({
   );
 }
 
-/* ============================================================
-   TAB: GALERI
-============================================================ */
-
 function GaleriTab({
   mergedData,
   onSave,
@@ -1064,10 +1019,6 @@ function GaleriTab({
     </div>
   );
 }
-
-/* ============================================================
-   TAB: KADO
-============================================================ */
 
 function KadoTab({
   mergedData,
@@ -1168,10 +1119,6 @@ function KadoTab({
     </div>
   );
 }
-
-/* ============================================================
-   TAB: DRESS CODE
-============================================================ */
 
 function DressCodeTab({
   mergedData,
