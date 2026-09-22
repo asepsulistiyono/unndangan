@@ -14,7 +14,6 @@ import {
   IMG as DEFAULT_IMG,
 } from "./wedding";
 
-import { generateSlug } from "./slug";
 
 import type { ReligiousFormat } from "./religiousFormats";
 import type { TemplateId } from "./templates";
@@ -99,7 +98,7 @@ export interface WeddingData {
 type SettingsRow = {
   id: string;
   user_id?: string | null;
-  slug?: string | null;
+ 
   data?: WeddingData | null;
 };
 
@@ -115,7 +114,7 @@ type RealtimePayload = {
 
 export function useWeddingData(
   userId?: string | null,
-  slug?: string | null
+ 
 ) {
   const [data, setData] =
     useState<WeddingData>({});
@@ -281,118 +280,90 @@ export function useWeddingData(
   }, [slug, userId]);
 
   const updateData = useCallback(
-    async (patch: WeddingData) => {
-      const merged: WeddingData = {
-        ...data,
-        ...patch,
-      };
+  async (patch: WeddingData) => {
+    const merged: WeddingData = {
+      ...data,
+      ...patch,
+    };
 
-      /**
-       * Slug selalu dibuat dari nama terbaru.
-       * Dengan cara ini, kolom settings.slug
-       * tetap sinkron dengan URL undangan.
-       */
-      const nextSlug =
-        merged.groom?.short &&
-        merged.bride?.short
-          ? generateSlug(
-              merged.groom.short,
-              merged.bride.short
-            )
-          : undefined;
+    setData(merged);
+    setError(null);
 
-      setData(merged);
-      setError(null);
+    try {
+      if (SUPABASE_ENABLED && userId) {
+        const {
+          data: existingRows,
+          error: selectError,
+        } = await supabase
+          .from("settings")
+          .select("id")
+          .eq("user_id", userId)
+          .limit(1);
 
-      try {
-        if (SUPABASE_ENABLED && userId) {
+        if (selectError) {
+          throw selectError;
+        }
+
+        const existingRow =
+          existingRows?.[0];
+
+        if (existingRow) {
           const {
-            data: existingRows,
-            error: selectError,
+            error: updateError,
           } = await supabase
             .from("settings")
-            .select("id")
-            .eq("user_id", userId)
-            .limit(1);
-
-          if (selectError) {
-            throw selectError;
-          }
-
-          const existingRow =
-            existingRows?.[0];
-
-          if (existingRow) {
-            const updatePayload: {
-              data: WeddingData;
-              updated_at: string;
-              slug?: string;
-            } = {
+            .update({
               data: merged,
-              updated_at:
-                new Date().toISOString(),
-              ...(nextSlug
-                ? { slug: nextSlug }
-                : {}),
-            };
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingRow.id);
 
-            const {
-              error: updateError,
-            } = await supabase
-              .from("settings")
-              .update(updatePayload)
-              .eq("id", existingRow.id);
-
-            if (updateError) {
-              throw updateError;
-            }
-          } else {
-            const insertPayload: {
-              user_id: string;
-              data: WeddingData;
-              slug?: string;
-            } = {
+          if (updateError) {
+            throw updateError;
+          }
+        } else {
+          const {
+            error: insertError,
+          } = await supabase
+            .from("settings")
+            .insert({
               user_id: userId,
               data: merged,
-              ...(nextSlug
-                ? { slug: nextSlug }
-                : {}),
-            };
+            });
 
-            const {
-              error: insertError,
-            } = await supabase
-              .from("settings")
-              .insert(insertPayload);
-
-            if (insertError) {
-              throw insertError;
-            }
+          if (insertError) {
+            throw insertError;
           }
-
-          return;
         }
 
-        if (
-          typeof window !== "undefined"
-        ) {
-          window.localStorage.setItem(
-            storageKey,
-            JSON.stringify(merged)
-          );
-        }
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Gagal menyimpan data undangan";
-
-        setError(message);
-        throw err;
+        return;
       }
-    },
-    [data, storageKey, userId]
-  );
+
+      if (
+        typeof window !== "undefined"
+      ) {
+        window.localStorage.setItem(
+          storageKey,
+          JSON.stringify(merged)
+        );
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Gagal menyimpan data undangan";
+
+      console.error(
+        "Gagal menyimpan wedding data:",
+        err
+      );
+
+      setError(message);
+      throw err;
+    }
+  },
+  [data, storageKey, userId]
+);
 
   const mergedData =
     mergeWithDefaults(data);
