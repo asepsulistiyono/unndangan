@@ -122,6 +122,9 @@ export default function AdminPanel({
     mergedData.bride.short
   );
 
+  const invitationUrl =
+    `${window.location.origin}/#/${invitationSlug}`;
+
   const invitationUrl = `${window.location.origin}/#/${invitationSlug}`;
 
   const tabs: {
