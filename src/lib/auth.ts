@@ -64,9 +64,7 @@ function saveDemoProfiles(profiles: AdminProfile[]) {
 function loadDemoConfig(): DemoConfig {
   try {
     const raw = localStorage.getItem(LS_CONFIG);
-    return raw
-      ? JSON.parse(raw)
-      : { adminWA: "6281234567890" };
+    return raw ? JSON.parse(raw) : { adminWA: "6281234567890" };
   } catch {
     return { adminWA: "6281234567890" };
   }
@@ -85,9 +83,7 @@ function ensureDemoSuperAdmin(): void {
   const demoUsername = "superadmin";
   const demoPassword = "demo123";
 
-  let demoUser = users.find(
-    (user) => user.username === demoUsername
-  );
+  let demoUser = users.find((user) => user.username === demoUsername);
 
   if (!demoUser) {
     demoUser = {
@@ -123,18 +119,16 @@ function ensureDemoSuperAdmin(): void {
  * AUTH FUNCTIONS
  * ============================================================ */
 
-
 export async function signIn(username: string, password: string) {
   if (SUPABASE_ENABLED) {
     const email = username.includes("@")
       ? username
       : `${username}@wedding.local`;
 
-    const { data, error } =
-      await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (error) throw error;
 
@@ -146,9 +140,7 @@ export async function signIn(username: string, password: string) {
   const users = loadDemoUsers();
 
   const user = users.find(
-    (item) =>
-      item.username === username &&
-      item.password === password
+    (item) => item.username === username && item.password === password
   );
 
   if (!user) {
@@ -161,10 +153,7 @@ export async function signIn(username: string, password: string) {
     name: user.name,
   };
 
-  sessionStorage.setItem(
-    LS_SESSION,
-    JSON.stringify(session)
-  );
+  sessionStorage.setItem(LS_SESSION, JSON.stringify(session));
 
   dispatchAuthEvent();
 
@@ -205,15 +194,13 @@ export async function getSession(): Promise<{
 
     return {
       user_id: data.session.user.id,
-      username:
-        data.session.user.email?.split("@")[0] || "",
+      username: data.session.user.email?.split("@")[0] || "",
       name: null,
     };
   }
 
   try {
     const raw = sessionStorage.getItem(LS_SESSION);
-
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -263,11 +250,7 @@ export async function getAdminProfile(
         .maybeSingle();
 
       if (error) {
-        console.error(
-          "Error fetching admin profile:",
-          error
-        );
-
+        console.error("Error fetching admin profile:", error);
         return null;
       }
 
@@ -277,11 +260,7 @@ export async function getAdminProfile(
 
       return data as AdminProfile;
     } catch (error) {
-      console.error(
-        "Exception in getAdminProfile:",
-        error
-      );
-
+      console.error("Exception in getAdminProfile:", error);
       return null;
     }
   }
@@ -290,11 +269,7 @@ export async function getAdminProfile(
 
   const profiles = loadDemoProfiles();
 
-  return (
-    profiles.find(
-      (profile) => profile.user_id === userId
-    ) || null
-  );
+  return profiles.find((profile) => profile.user_id === userId) || null;
 }
 
 export async function listAdmins(): Promise<AdminProfile[]> {
@@ -327,23 +302,20 @@ export async function createAdmin(
   name: string | null
 ) {
   if (SUPABASE_ENABLED) {
-    const { data, error } =
-      await supabase.functions.invoke(
-        "create-new-admin",
-        {
-          body: {
-            username,
-            password,
-            role,
-            name,
-          },
-        }
-      );
+    const { data, error } = await supabase.functions.invoke(
+      "create-new-admin",
+      {
+        body: {
+          username,
+          password,
+          role,
+          name,
+        },
+      }
+    );
 
     if (error) {
-      throw new Error(
-        error.message || "Gagal membuat admin"
-      );
+      throw new Error(error.message || "Gagal membuat admin");
     }
 
     if (data?.error) {
@@ -358,9 +330,7 @@ export async function createAdmin(
 
   const users = loadDemoUsers();
 
-  const existingUser = users.find(
-    (user) => user.username === username
-  );
+  const existingUser = users.find((user) => user.username === username);
 
   if (existingUser) {
     throw new Error("Username sudah terdaftar");
@@ -402,29 +372,48 @@ export async function createAdmin(
 
 export async function deleteAdmin(userId: string) {
   if (SUPABASE_ENABLED) {
-    const { error } = await supabase
-      .from("admin_profiles")
-      .delete()
-      .eq("user_id", userId);
+    const { data, error } = await supabase.functions.invoke(
+      "delete-admin",
+      {
+        body: { userId },
+      }
+    );
 
-    if (error) throw error;
+    if (error) {
+      let message = error.message || "Gagal menghapus admin";
 
-    return;
+      const context = (error as { context?: unknown }).context;
+
+      if (context instanceof Response) {
+        const payload = await context
+          .clone()
+          .json()
+          .catch(() => null);
+
+        if (payload?.error) {
+          message = payload.error;
+        }
+      }
+
+      throw new Error(message);
+    }
+
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    return data;
   }
 
   const profiles = loadDemoProfiles();
 
   saveDemoProfiles(
-    profiles.filter(
-      (profile) => profile.user_id !== userId
-    )
+    profiles.filter((profile) => profile.user_id !== userId)
   );
 
   const users = loadDemoUsers();
 
-  saveDemoUsers(
-    users.filter((user) => user.id !== userId)
-  );
+  saveDemoUsers(users.filter((user) => user.id !== userId));
 
   removeSlugByUserId(userId);
 }
@@ -445,9 +434,7 @@ export async function resetAdminPassword(
 
   const users = loadDemoUsers();
 
-  const userIndex = users.findIndex(
-    (user) => user.id === userId
-  );
+  const userIndex = users.findIndex((user) => user.id === userId);
 
   if (userIndex === -1) {
     throw new Error("User tidak ditemukan");
@@ -461,16 +448,12 @@ export async function getAdminPassword(
   userId: string
 ): Promise<string | null> {
   if (SUPABASE_ENABLED) {
-    throw new Error(
-      "Lihat password hanya tersedia di mode demo"
-    );
+    throw new Error("Lihat password hanya tersedia di mode demo");
   }
 
   const users = loadDemoUsers();
 
-  const user = users.find(
-    (item) => item.id === userId
-  );
+  const user = users.find((item) => item.id === userId);
 
   return user?.password || null;
 }
@@ -485,9 +468,7 @@ export async function getAdminWA(): Promise<string> {
   }
 
   try {
-    const { data, error } = await supabase.rpc(
-      "get_public_admin_wa"
-    );
+    const { data, error } = await supabase.rpc("get_public_admin_wa");
 
     if (error) {
       console.error("Error getting public admin WA:", error);
@@ -519,9 +500,7 @@ export async function setAdminWA(wa: string) {
       .maybeSingle();
 
     if (fetchError) {
-      throw new Error(
-        `Gagal membaca pengaturan: ${fetchError.message}`
-      );
+      throw new Error(`Gagal membaca pengaturan: ${fetchError.message}`);
     }
 
     if (!currentData) {
@@ -586,38 +565,23 @@ export function onAuthStateChange(
         try {
           callback(session?.user || null);
         } catch (error) {
-          console.error(
-            "Error in auth state callback:",
-            error
-          );
-
+          console.error("Error in auth state callback:", error);
           callback(null);
         }
       }
     );
 
-    const fallbackTimer = setTimeout(
-      async () => {
-        if (callbackCalled) return;
+    const fallbackTimer = setTimeout(async () => {
+      if (callbackCalled) return;
 
-        try {
-          const { data: sessionData } =
-            await supabase.auth.getSession();
-
-          callback(
-            sessionData.session?.user || null
-          );
-        } catch (error) {
-          console.error(
-            "Error checking session:",
-            error
-          );
-
-          callback(null);
-        }
-      },
-      3000
-    );
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        callback(sessionData.session?.user || null);
+      } catch (error) {
+        console.error("Error checking session:", error);
+        callback(null);
+      }
+    }, 3000);
 
     return () => {
       clearTimeout(fallbackTimer);
@@ -648,16 +612,10 @@ export function onAuthStateChange(
 
   const handler = () => checkSession();
 
-  window.addEventListener(
-    "demo-auth-change",
-    handler
-  );
+  window.addEventListener("demo-auth-change", handler);
 
   return () => {
-    window.removeEventListener(
-      "demo-auth-change",
-      handler
-    );
+    window.removeEventListener("demo-auth-change", handler);
   };
 }
 
