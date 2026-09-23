@@ -123,39 +123,6 @@ function ensureDemoSuperAdmin(): void {
  * AUTH FUNCTIONS
  * ============================================================ */
 
-export async function deleteAdmin(userId: string) {
-  if (SUPABASE_ENABLED) {
-    const { data, error } = await supabase.functions.invoke(
-      "delete-admin",
-      { body: { userId } }
-    );
-
-    if (error) {
-      let message = error.message;
-      const context = (error as { context?: unknown }).context;
-
-      if (context instanceof Response) {
-        const payload = await context.clone().json().catch(() => null);
-        message = payload?.error || message;
-      }
-
-      throw new Error(message || "Gagal menghapus admin");
-    }
-
-    if (data?.error) throw new Error(data.error);
-    return data;
-  }
-
-  // Pertahankan kode penghapusan mode demo yang sudah ada di sini.
-  const profiles = loadDemoProfiles();
-  saveDemoProfiles(profiles.filter((profile) => profile.user_id !== userId));
-
-  const users = loadDemoUsers();
-  saveDemoUsers(users.filter((user) => user.id !== userId));
-
-  removeSlugByUserId(userId);
-}
-
 
 export async function signIn(username: string, password: string) {
   if (SUPABASE_ENABLED) {
