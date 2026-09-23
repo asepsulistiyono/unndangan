@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-
+import GiftSection from "./GiftSection";
 import Cover from "./components/Cover";
 import Nav from "./components/Nav";
 import { Petals } from "./components/Decor";
