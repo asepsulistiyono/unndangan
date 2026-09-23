@@ -43,11 +43,6 @@ import {
 } from "./templates";
 
 interface WeddingContextType {
-  /*
-   * data sekarang menggunakan mergedData,
-   * sehingga quote default tetap tersedia
-   * meskipun database memiliki quote: null.
-   */
   data: typeof DEFAULT_WEDDING & {
     photos: any;
   };
@@ -62,9 +57,7 @@ interface WeddingContextType {
   religiousFormat: ReligiousFormatData;
   template: DesignTemplate;
 
-  translateDateStr: (
-    dateStr: string
-  ) => string;
+  translateDateStr: (dateStr: string) => string;
 
   getLocalizedText: (
     idText: string,
@@ -74,27 +67,19 @@ interface WeddingContextType {
   loading: boolean;
   error: string | null;
 
-  updateData: (
-    patch: WeddingData
-  ) => Promise<void>;
-
+  updateData: (patch: WeddingData) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
 const WeddingContext =
-  createContext<WeddingContextType | null>(
-    null
-  );
+  createContext<WeddingContextType | null>(null);
 
 function getSlugFromHash(): string | null {
-  if (
-    typeof window === "undefined"
-  ) {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  const hash =
-    window.location.hash;
+  const hash = window.location.hash;
 
   if (!hash.startsWith("#/")) {
     return null;
@@ -110,9 +95,7 @@ function getSlugFromHash(): string | null {
     return null;
   }
 
-  /*
-   * Route berikut bukan slug undangan.
-   */
+  // Route berikut bukan slug undangan.
   const ignoredRoutes = [
     "admin",
     "login",
@@ -122,11 +105,7 @@ function getSlugFromHash(): string | null {
     "forgot-password",
   ];
 
-  if (
-    ignoredRoutes.includes(
-      rawSlug.toLowerCase()
-    )
-  ) {
+  if (ignoredRoutes.includes(rawSlug.toLowerCase())) {
     return null;
   }
 
@@ -146,14 +125,8 @@ export function WeddingProvider({
   userId?: string | null;
   slug?: string | null;
 }) {
-  /*
-   * Jika slug diberikan oleh App.tsx,
-   * gunakan nilai tersebut.
-
-   * Jika tidak, ambil slug dari URL hash.
-   */
-  const effectiveSlug =
-    slug?.trim() || getSlugFromHash();
+  // Gunakan slug dari props jika ada; jika tidak, ambil dari URL hash.
+  const effectiveSlug = slug?.trim() || getSlugFromHash();
 
   const weddingData = useWeddingData(
     userId ?? null,
@@ -161,71 +134,45 @@ export function WeddingProvider({
   );
 
   const theme = getTheme(
-    weddingData.data.themeId ||
-      "emerald-garden"
+    weddingData.data.themeId || "emerald-garden"
   );
 
-  const language =
-    (weddingData.data.language ||
-      "id") as Language;
+  const language = (
+    weddingData.data.language || "id"
+  ) as Language;
 
   const t = translations[language];
 
-  const religiousFormat =
-    getReligiousFormat(
-      (weddingData.data.religiousFormat ||
-        "islam") as ReligiousFormat
-    );
-
-  const template = getTemplate(
-    (weddingData.data.templateId ||
-      "classic-elegant") as TemplateId
+  const religiousFormat = getReligiousFormat(
+    (weddingData.data.religiousFormat || "islam") as ReligiousFormat
   );
 
-  const translateDateStr = (
-    dateStr: string
-  ) => {
-    return translateDate(
-      dateStr,
-      language
-    );
+  const template = getTemplate(
+    (weddingData.data.templateId || "classic-elegant") as TemplateId
+  );
+
+  const translateDateStr = (dateStr: string) => {
+    return translateDate(dateStr, language);
   };
 
   const getLocalizedText = (
     idText: string,
     enText?: string
   ) => {
-    if (
-      language === "en" &&
-      enText
-    ) {
+    if (language === "en" && enText) {
       return enText;
     }
 
     return idText;
   };
 
-  /*
-   * Gunakan mergedData sebagai data utama.
-   *
-   * Sebelumnya:
-   * data: weddingData.data
-   *
-   * Masalahnya, jika database memiliki:
-   * quote: null
-   *
-   * maka komponen mendapatkan quote null.
-   *
-   * Sekarang:
-   * data: weddingData.mergedData
-   *
-   * sehingga data.quote selalu memiliki
-   * fallback dari DEFAULT_WEDDING.quote.
-   */
   const value: WeddingContextType = {
     ...weddingData,
 
+    // Pakai mergedData agar nilai default tetap tersedia
+    // saat data database bernilai null.
     data: weddingData.mergedData,
+    mergedData: weddingData.mergedData,
 
     theme,
     language,
@@ -244,11 +191,8 @@ export function WeddingProvider({
       return;
     }
 
-    const {
-      groom,
-      bride,
-      dateLabel,
-    } = weddingData.mergedData;
+    const { groom, bride, dateLabel } =
+      weddingData.mergedData;
 
     const title =
       language === "id"
@@ -269,18 +213,14 @@ export function WeddingProvider({
   ]);
 
   return (
-    <WeddingContext.Provider
-      value={value}
-    >
+    <WeddingContext.Provider value={value}>
       {children}
     </WeddingContext.Provider>
   );
 }
 
 export function useWedding() {
-  const context = useContext(
-    WeddingContext
-  );
+  const context = useContext(WeddingContext);
 
   if (!context) {
     throw new Error(
