@@ -118,6 +118,70 @@ function normalizeWeddingData(
 }
 
 /**
+ * Cari satu baris settings berdasarkan ID atau slug.
+ * Jika hanya user_id yang tersedia, pencarian hanya berhasil
+ * bila pengguna tersebut memiliki tepat satu baris.
+ */
+async function findSettingsRow(
+  settingsId: string | null,
+  slug: string | null,
+  userId: string | null
+): Promise<SettingsRow | null> {
+  if (settingsId) {
+    const { data, error } = await supabase
+      .from("settings")
+      .select("id, user_id, slug, data")
+      .eq("id", settingsId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    return data as SettingsRow | null;
+  }
+
+  if (slug) {
+    const { data, error } = await supabase
+      .from("settings")
+      .select("id, user_id, slug, data")
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    return data as SettingsRow | null;
+  }
+
+  if (userId) {
+    const { data, error } = await supabase
+      .from("settings")
+      .select("id, user_id, slug, data")
+      .eq("user_id", userId)
+      .limit(2);
+
+    if (error) {
+      throw error;
+    }
+
+    const rows = (data || []) as SettingsRow[];
+
+    if (rows.length > 1) {
+      throw new Error(
+        "Pengguna ini memiliki beberapa undangan. " +
+          "Teruskan slug atau ID undangan agar data yang benar dipilih."
+      );
+    }
+
+    return rows[0] || null;
+  }
+
+  return null;
+}
+
+/**
  * Menggabungkan patch ke data saat ini.
  *
  * Objek bertingkat digabungkan agar update sebagian, misalnya
@@ -172,12 +236,23 @@ function mergeWeddingPatch(
   };
 }
 
+/**
+ * Pemanggilan:
+ * useWeddingData(userId, slug, settingsId)
+ *
+ * Prioritas pemilihan baris:
+ * 1. settingsId
+ * 2. slug
+ * 3. userId, hanya jika memiliki satu baris settings
+ */
 export function useWeddingData(
   userId?: string | null,
-  slug?: string | null
+  slug?: string | null,
+  settingsId?: string | null
 ) {
   const normalizedUserId = normalizeValue(userId);
   const normalizedSlug = normalizeValue(slug);
+  const normalizedSettingsId = normalizeValue(settingsId);
 
   const [data, setData] = useState<WeddingData>({});
   const [loading, setLoading] = useState(true);
@@ -192,44 +267,37 @@ export function useWeddingData(
     setError(null);
 
     try {
-      /*
-       * PUBLIC PAGE
-       *
-       * Halaman publik menggunakan slug.
-       * Contoh: #/romeo_dan_juliaet
-       */
-      if (SUPABASE_ENABLED && normalizedSlug) {
-        const {
-          data: row,
-          error: fetchError,
-        } = await supabase
-          .from("settings")
-          .select("id, user_id, slug, data")
-          .eq("slug", normalizedSlug)
-          .maybeSingle();
-
-        if (fetchError) {
-          throw fetchError;
-        }
+      if (
+        SUPABASE_ENABLED &&
+        (
+          normalizedSettingsId ||
+          normalizedSlug ||
+          normalizedUserId
+        )
+      ) {
+        const row = await findSettingsRow(
+          normalizedSettingsId,
+          normalizedSlug,
+          normalizedUserId
+        );
 
         if (!row) {
-          throw new Error(
-            `Data undangan dengan slug "${normalizedSlug}" tidak ditemukan`
-          );
+          if (normalizedSettingsId || normalizedSlug) {
+            throw new Error(
+              "Data undangan berdasarkan ID atau slug tidak ditemukan."
+            );
+          }
+
+          setData({});
+          return;
         }
 
-        const settingsRow = row as SettingsRow;
-        const weddingData = normalizeWeddingData(
-          settingsRow.data
-        );
+        const weddingData = normalizeWeddingData(row.data);
 
         console.log(
-          "[WeddingData] Data publik berhasil dimuat",
+          "[WeddingData] Data berhasil dimuat",
           {
-            slug: settingsRow.slug,
-            storyCount: weddingData.story?.length || 0,
-            hasQuote: Boolean(weddingData.quote),
-            quoteText: weddingData.quote?.text || null,
+            slug: row.slug || null,
             giftsCount: weddingData.gifts?.length || 0,
           }
         );
@@ -238,46 +306,6 @@ export function useWeddingData(
         return;
       }
 
-      /*
-       * ADMIN PAGE
-       *
-       * Halaman admin menggunakan user_id.
-       */
-      if (SUPABASE_ENABLED && normalizedUserId) {
-        const {
-          data: rows,
-          error: selectError,
-        } = await supabase
-          .from("settings")
-          .select("id, user_id, slug, data")
-          .eq("user_id", normalizedUserId)
-          .limit(1);
-
-        if (selectError) {
-          throw selectError;
-        }
-
-        const row = rows?.[0] as SettingsRow | undefined;
-        const weddingData = normalizeWeddingData(row?.data);
-
-        console.log(
-          "[WeddingData] Data admin berhasil dimuat",
-          {
-            slug: row?.slug || null,
-            storyCount: weddingData.story?.length || 0,
-            hasQuote: Boolean(weddingData.quote),
-            quoteText: weddingData.quote?.text || null,
-            giftsCount: weddingData.gifts?.length || 0,
-          }
-        );
-
-        setData(weddingData);
-        return;
-      }
-
-      /*
-       * LOCAL STORAGE FALLBACK
-       */
       if (typeof window !== "undefined") {
         const raw = window.localStorage.getItem(storageKey);
 
@@ -320,6 +348,7 @@ export function useWeddingData(
       setLoading(false);
     }
   }, [
+    normalizedSettingsId,
     normalizedSlug,
     normalizedUserId,
     storageKey,
@@ -331,22 +360,25 @@ export function useWeddingData(
 
   /*
    * REALTIME SUBSCRIPTION
+   *
+   * Gunakan ID atau slug supaya perubahan dari undangan lain
+   * milik pengguna yang sama tidak masuk ke halaman ini.
    */
   useEffect(() => {
     if (
       !SUPABASE_ENABLED ||
-      (!normalizedUserId && !normalizedSlug)
+      (!normalizedSettingsId && !normalizedSlug)
     ) {
       return;
     }
 
-    const targetKey = normalizedSlug
-      ? `slug-${normalizedSlug}`
-      : `user-${normalizedUserId}`;
+    const targetKey = normalizedSettingsId
+      ? `id-${normalizedSettingsId}`
+      : `slug-${normalizedSlug}`;
 
-    const filter = normalizedSlug
-      ? `slug=eq.${normalizedSlug}`
-      : `user_id=eq.${normalizedUserId}`;
+    const filter = normalizedSettingsId
+      ? `id=eq.${normalizedSettingsId}`
+      : `slug=eq.${normalizedSlug}`;
 
     const channel = supabase
       .channel(`settings-changes-${targetKey}`)
@@ -367,7 +399,7 @@ export function useWeddingData(
             return;
           }
 
-          if (realtimePayload.new?.data) {
+          if (realtimePayload.new) {
             setData(
               normalizeWeddingData(
                 realtimePayload.new.data
@@ -401,8 +433,8 @@ export function useWeddingData(
       void supabase.removeChannel(channel);
     };
   }, [
+    normalizedSettingsId,
     normalizedSlug,
-    normalizedUserId,
   ]);
 
   /*
@@ -416,26 +448,12 @@ export function useWeddingData(
       setError(null);
 
       try {
-        /*
-         * SIMPAN KE SUPABASE UNTUK ADMIN
-         */
-        if (SUPABASE_ENABLED && normalizedUserId) {
-          const {
-            data: rows,
-            error: selectError,
-          } = await supabase
-            .from("settings")
-            .select("id")
-            .eq("user_id", normalizedUserId)
-            .limit(1);
-
-          if (selectError) {
-            throw selectError;
-          }
-
-          const existingRow = rows?.[0] as
-            | { id: string }
-            | undefined;
+        if (SUPABASE_ENABLED) {
+          const existingRow = await findSettingsRow(
+            normalizedSettingsId,
+            normalizedSlug,
+            normalizedUserId
+          );
 
           if (existingRow?.id) {
             const { error: updateError } = await supabase
@@ -449,7 +467,31 @@ export function useWeddingData(
             if (updateError) {
               throw updateError;
             }
-          } else {
+
+            console.log(
+              "[WeddingData] Data berhasil disimpan ke Supabase",
+              { slug: existingRow.slug || null }
+            );
+
+            return;
+          }
+
+          /*
+           * Jika ID atau slug tertentu sudah diberikan tetapi
+           * tidak ditemukan, jangan membuat baris baru tanpa sengaja.
+           */
+          if (normalizedSettingsId || normalizedSlug) {
+            throw new Error(
+              "Baris undangan tidak ditemukan. Periksa ID atau slug undangan."
+            );
+          }
+
+          /*
+           * Buat baris baru hanya jika belum ada baris untuk user ini.
+           * Jika user memiliki beberapa undangan, findSettingsRow()
+           * akan menghentikan proses agar tidak memilih baris sembarangan.
+           */
+          if (normalizedUserId) {
             const { error: insertError } = await supabase
               .from("settings")
               .insert({
@@ -461,18 +503,15 @@ export function useWeddingData(
             if (insertError) {
               throw insertError;
             }
+
+            console.log(
+              "[WeddingData] Data undangan baru berhasil disimpan"
+            );
+
+            return;
           }
-
-          console.log(
-            "[WeddingData] Data berhasil disimpan ke Supabase"
-          );
-
-          return;
         }
 
-        /*
-         * SIMPAN KE LOCAL STORAGE
-         */
         if (typeof window !== "undefined") {
           window.localStorage.setItem(
             storageKey,
@@ -496,15 +535,13 @@ export function useWeddingData(
     },
     [
       data,
+      normalizedSettingsId,
+      normalizedSlug,
       normalizedUserId,
       storageKey,
     ]
   );
 
-  /*
-   * Data yang dikembalikan selalu memiliki
-   * struktur default lengkap.
-   */
   const mergedData = mergeWithDefaults(data);
 
   return {
