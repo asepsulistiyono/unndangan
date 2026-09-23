@@ -117,24 +117,71 @@ function normalizeWeddingData(
   return value as WeddingData;
 }
 
+/**
+ * Menggabungkan patch ke data saat ini.
+ *
+ * Objek bertingkat digabungkan agar update sebagian, misalnya
+ * { groom: { bioEn: "..." } }, tidak menghapus field groom lainnya.
+ *
+ * Array sengaja diganti utuh. Dengan begitu, gifts: [] berarti
+ * semua rekening dihapus.
+ */
+function mergeWeddingPatch(
+  current: WeddingData,
+  patch: WeddingData
+): WeddingData {
+  return {
+    ...current,
+    ...patch,
+
+    ...(patch.groom !== undefined
+      ? {
+          groom: {
+            ...current.groom,
+            ...patch.groom,
+          },
+        }
+      : {}),
+
+    ...(patch.bride !== undefined
+      ? {
+          bride: {
+            ...current.bride,
+            ...patch.bride,
+          },
+        }
+      : {}),
+
+    ...(patch.quote !== undefined
+      ? {
+          quote: {
+            ...current.quote,
+            ...patch.quote,
+          },
+        }
+      : {}),
+
+    ...(patch.photos !== undefined
+      ? {
+          photos: {
+            ...current.photos,
+            ...patch.photos,
+          },
+        }
+      : {}),
+  };
+}
+
 export function useWeddingData(
   userId?: string | null,
   slug?: string | null
 ) {
-  const normalizedUserId =
-    normalizeValue(userId);
+  const normalizedUserId = normalizeValue(userId);
+  const normalizedSlug = normalizeValue(slug);
 
-  const normalizedSlug =
-    normalizeValue(slug);
-
-  const [data, setData] =
-    useState<WeddingData>({});
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState<string | null>(null);
+  const [data, setData] = useState<WeddingData>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const storageKey = normalizedUserId
     ? `wedding-data-${normalizedUserId}`
@@ -149,13 +196,9 @@ export function useWeddingData(
        * PUBLIC PAGE
        *
        * Halaman publik menggunakan slug.
-       * Contoh:
-       * #/romeo_dan_juliaet
+       * Contoh: #/romeo_dan_juliaet
        */
-      if (
-        SUPABASE_ENABLED &&
-        normalizedSlug
-      ) {
+      if (SUPABASE_ENABLED && normalizedSlug) {
         const {
           data: row,
           error: fetchError,
@@ -175,24 +218,19 @@ export function useWeddingData(
           );
         }
 
-        const settingsRow =
-          row as SettingsRow;
-
-        const weddingData =
-          normalizeWeddingData(
-            settingsRow.data
-          );
+        const settingsRow = row as SettingsRow;
+        const weddingData = normalizeWeddingData(
+          settingsRow.data
+        );
 
         console.log(
           "[WeddingData] Data publik berhasil dimuat",
           {
             slug: settingsRow.slug,
-            storyCount:
-              weddingData.story?.length || 0,
-            hasQuote:
-              Boolean(weddingData.quote),
-            quoteText:
-              weddingData.quote?.text || null,
+            storyCount: weddingData.story?.length || 0,
+            hasQuote: Boolean(weddingData.quote),
+            quoteText: weddingData.quote?.text || null,
+            giftsCount: weddingData.gifts?.length || 0,
           }
         );
 
@@ -205,10 +243,7 @@ export function useWeddingData(
        *
        * Halaman admin menggunakan user_id.
        */
-      if (
-        SUPABASE_ENABLED &&
-        normalizedUserId
-      ) {
+      if (SUPABASE_ENABLED && normalizedUserId) {
         const {
           data: rows,
           error: selectError,
@@ -222,22 +257,17 @@ export function useWeddingData(
           throw selectError;
         }
 
-        const row =
-          rows?.[0] as SettingsRow | undefined;
-
-        const weddingData =
-          normalizeWeddingData(row?.data);
+        const row = rows?.[0] as SettingsRow | undefined;
+        const weddingData = normalizeWeddingData(row?.data);
 
         console.log(
           "[WeddingData] Data admin berhasil dimuat",
           {
             slug: row?.slug || null,
-            storyCount:
-              weddingData.story?.length || 0,
-            hasQuote:
-              Boolean(weddingData.quote),
-            quoteText:
-              weddingData.quote?.text || null,
+            storyCount: weddingData.story?.length || 0,
+            hasQuote: Boolean(weddingData.quote),
+            quoteText: weddingData.quote?.text || null,
+            giftsCount: weddingData.gifts?.length || 0,
           }
         );
 
@@ -248,13 +278,8 @@ export function useWeddingData(
       /*
        * LOCAL STORAGE FALLBACK
        */
-      if (
-        typeof window !== "undefined"
-      ) {
-        const raw =
-          window.localStorage.getItem(
-            storageKey
-          );
+      if (typeof window !== "undefined") {
+        const raw = window.localStorage.getItem(storageKey);
 
         if (!raw) {
           setData({});
@@ -262,22 +287,15 @@ export function useWeddingData(
         }
 
         try {
-          const parsed =
-            JSON.parse(raw);
-
-          setData(
-            normalizeWeddingData(parsed)
-          );
+          const parsed: unknown = JSON.parse(raw);
+          setData(normalizeWeddingData(parsed));
         } catch (parseError) {
           console.error(
             "[WeddingData] LocalStorage rusak:",
             parseError
           );
 
-          window.localStorage.removeItem(
-            storageKey
-          );
-
+          window.localStorage.removeItem(storageKey);
           setData({});
         }
 
@@ -317,8 +335,7 @@ export function useWeddingData(
   useEffect(() => {
     if (
       !SUPABASE_ENABLED ||
-      (!normalizedUserId &&
-        !normalizedSlug)
+      (!normalizedUserId && !normalizedSlug)
     ) {
       return;
     }
@@ -345,17 +362,12 @@ export function useWeddingData(
           const realtimePayload =
             payload as RealtimePayload;
 
-          if (
-            realtimePayload.eventType ===
-            "DELETE"
-          ) {
+          if (realtimePayload.eventType === "DELETE") {
             setData({});
             return;
           }
 
-          if (
-            realtimePayload.new?.data
-          ) {
+          if (realtimePayload.new?.data) {
             setData(
               normalizeWeddingData(
                 realtimePayload.new.data
@@ -372,17 +384,13 @@ export function useWeddingData(
           );
         }
 
-        if (
-          status === "CHANNEL_ERROR"
-        ) {
+        if (status === "CHANNEL_ERROR") {
           console.error(
             "[WeddingData] Realtime mengalami error"
           );
         }
 
-        if (
-          status === "TIMED_OUT"
-        ) {
+        if (status === "TIMED_OUT") {
           console.error(
             "[WeddingData] Realtime mengalami timeout"
           );
@@ -390,9 +398,7 @@ export function useWeddingData(
       });
 
     return () => {
-      void supabase.removeChannel(
-        channel
-      );
+      void supabase.removeChannel(channel);
     };
   }, [
     normalizedSlug,
@@ -404,10 +410,7 @@ export function useWeddingData(
    */
   const updateData = useCallback(
     async (patch: WeddingData) => {
-      const merged: WeddingData = {
-        ...data,
-        ...patch,
-      };
+      const merged = mergeWeddingPatch(data, patch);
 
       setData(merged);
       setError(null);
@@ -416,10 +419,7 @@ export function useWeddingData(
         /*
          * SIMPAN KE SUPABASE UNTUK ADMIN
          */
-        if (
-          SUPABASE_ENABLED &&
-          normalizedUserId
-        ) {
+        if (SUPABASE_ENABLED && normalizedUserId) {
           const {
             data: rows,
             error: selectError,
@@ -433,20 +433,16 @@ export function useWeddingData(
             throw selectError;
           }
 
-          const existingRow =
-            rows?.[0] as
-              | { id: string }
-              | undefined;
+          const existingRow = rows?.[0] as
+            | { id: string }
+            | undefined;
 
           if (existingRow?.id) {
-            const {
-              error: updateError,
-            } = await supabase
+            const { error: updateError } = await supabase
               .from("settings")
               .update({
                 data: merged,
-                updated_at:
-                  new Date().toISOString(),
+                updated_at: new Date().toISOString(),
               })
               .eq("id", existingRow.id);
 
@@ -454,15 +450,12 @@ export function useWeddingData(
               throw updateError;
             }
           } else {
-            const {
-              error: insertError,
-            } = await supabase
+            const { error: insertError } = await supabase
               .from("settings")
               .insert({
                 user_id: normalizedUserId,
                 data: merged,
-                updated_at:
-                  new Date().toISOString(),
+                updated_at: new Date().toISOString(),
               });
 
             if (insertError) {
@@ -480,9 +473,7 @@ export function useWeddingData(
         /*
          * SIMPAN KE LOCAL STORAGE
          */
-        if (
-          typeof window !== "undefined"
-        ) {
+        if (typeof window !== "undefined") {
           window.localStorage.setItem(
             storageKey,
             JSON.stringify(merged)
@@ -514,8 +505,7 @@ export function useWeddingData(
    * Data yang dikembalikan selalu memiliki
    * struktur default lengkap.
    */
-  const mergedData =
-    mergeWithDefaults(data);
+  const mergedData = mergeWithDefaults(data);
 
   return {
     data,
@@ -573,83 +563,53 @@ function mergeWithDefaults(
       ...(data.bride || {}),
     },
 
-    /*
-     * PERBAIKAN KUTIPAN
-     *
-     * Jika data.quote null atau belum ada
-     * di database, gunakan quote default.
-     */
-    quote: data.quote
-      ? {
-          ...DEFAULT_WEDDING.quote,
-          ...data.quote,
-        }
-      : {
-          ...DEFAULT_WEDDING.quote,
-        },
+    quote: {
+      ...DEFAULT_WEDDING.quote,
+      ...(data.quote || {}),
+    },
 
-    events: data.events?.length
-      ? data.events.map(
-          (event, index) => ({
-            ...(DEFAULT_WEDDING.events[
-              index
-            ] ||
-              DEFAULT_WEDDING.events[0]),
-            ...event,
-          })
-        )
+    events: Array.isArray(data.events)
+      ? data.events.map((event, index) => ({
+          ...(DEFAULT_WEDDING.events[index] ||
+            DEFAULT_WEDDING.events[0]),
+          ...event,
+        }))
       : DEFAULT_WEDDING.events,
 
-    story: data.story?.length
-      ? data.story.map(
-          (storyItem, index) => ({
-            ...(DEFAULT_WEDDING.story[
-              index
-            ] ||
-              DEFAULT_WEDDING.story[0]),
-            ...storyItem,
-          })
-        )
+    story: Array.isArray(data.story)
+      ? data.story.map((storyItem, index) => ({
+          ...(DEFAULT_WEDDING.story[index] ||
+            DEFAULT_WEDDING.story[0]),
+          ...storyItem,
+        }))
       : DEFAULT_WEDDING.story,
 
-    gallery: data.gallery?.length
-      ? data.gallery.map(
-          (galleryItem, index) => ({
-            ...(DEFAULT_WEDDING.gallery[
-              index
-            ] ||
-              DEFAULT_WEDDING.gallery[0]),
-            ...galleryItem,
-          })
-        )
+    gallery: Array.isArray(data.gallery)
+      ? data.gallery.map((galleryItem, index) => ({
+          ...(DEFAULT_WEDDING.gallery[index] ||
+            DEFAULT_WEDDING.gallery[0]),
+          ...galleryItem,
+        }))
       : DEFAULT_WEDDING.gallery,
 
-    gifts: data.gifts?.length
-      ? data.gifts.map(
-          (gift, index) => ({
-            ...(DEFAULT_WEDDING.gifts[
-              index
-            ] ||
-              DEFAULT_WEDDING.gifts[0]),
-            ...gift,
-          })
-        )
+    gifts: Array.isArray(data.gifts)
+      ? data.gifts.map((gift, index) => ({
+          ...(DEFAULT_WEDDING.gifts[index] ||
+            DEFAULT_WEDDING.gifts[0]),
+          ...gift,
+        }))
       : DEFAULT_WEDDING.gifts,
 
     giftAddress:
       data.giftAddress ??
       DEFAULT_WEDDING.giftAddress,
 
-    dresscode: data.dresscode?.length
-      ? data.dresscode.map(
-          (dresscodeItem, index) => ({
-            ...(DEFAULT_WEDDING.dresscode[
-              index
-            ] ||
-              DEFAULT_WEDDING.dresscode[0]),
-            ...dresscodeItem,
-          })
-        )
+    dresscode: Array.isArray(data.dresscode)
+      ? data.dresscode.map((dresscodeItem, index) => ({
+          ...(DEFAULT_WEDDING.dresscode[index] ||
+            DEFAULT_WEDDING.dresscode[0]),
+          ...dresscodeItem,
+        }))
       : DEFAULT_WEDDING.dresscode,
 
     photos: {
