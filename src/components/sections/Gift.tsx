@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { WEDDING } from "../../lib/wedding";
-import { useWedding } from "../../hooks/useWedding";
+import { useWedding } from "../../lib/WeddingContext";
 import { useReveal } from "../../hooks/useReveal";
 import { IconCheck, IconCopy, IconGift, IconPin } from "../Icons";
 import { SectionHead } from "../Decor";
