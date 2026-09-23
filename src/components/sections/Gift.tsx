@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { WEDDING } from "../../lib/wedding";
+import GiftSection from "../../GiftSection";
 import { useWedding } from "../../lib/WeddingContext";
 import { useReveal } from "../../hooks/useReveal";
 import { IconCheck, IconCopy, IconGift, IconPin } from "../Icons";
@@ -47,8 +48,10 @@ function CopyButton({ value, label = "Salin Nomor", copiedText = "Tersalin!" }: 
 }
 
 export default function Gift() {
-  const ref = useReveal();
-  const { mergedData, t } = useWedding();
+  const { mergedData } = useWedding();
+
+  return <GiftSection data={mergedData ?? {}} />;
+}
 
   return (
     <section id="kado" className="relative z-10 py-24 sm:py-32">
