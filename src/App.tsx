@@ -24,6 +24,7 @@ import TemplateWrapper from "./components/TemplateWrapper";
 import {
   getAdminProfile,
   onAuthStateChange,
+  signOut,
   type AdminProfile,
 } from "./lib/auth";
 
@@ -368,9 +369,20 @@ function App() {
 
           <button
             type="button"
-            onClick={() => {
-              window.location.hash = "#/";
-              window.location.reload();
+            onClick={async () => {
+              try {
+                await signOut();
+
+                setUser(null);
+                setProfile(null);
+                setUserName(null);
+                setAuthLoading(false);
+
+                window.location.hash = "#/admin";
+              } catch (error) {
+                console.error("Gagal logout:", error);
+                alert("Gagal keluar. Silakan coba lagi.");
+              }
             }}
             className="mt-6 border border-gold-500/40 px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-gold-300 transition-all hover:bg-gold-500 hover:text-pine-950"
           >
