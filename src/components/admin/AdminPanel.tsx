@@ -1025,54 +1025,37 @@ function KadoTab({
   onSave,
 }: any) {
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="font-display text-2xl font-light italic text-ivory">
-          Rekening
-        </h2>
+    <div className="space-y-5">
+      <h2 className="font-display text-2xl font-light italic text-ivory">
+        Informasi Kado
+      </h2>
 
+      <div className="space-y-6 border border-gold-500/15 bg-pine-800/40 p-5">
         {mergedData.gifts.map(
           (gift: any, index: number) => (
             <div
               key={index}
-              className="mt-5 space-y-4 border border-gold-500/15 bg-pine-800/40 p-5"
+              className="space-y-4"
             >
               <FieldEditor
-                label="Bank"
-                value={gift.bank}
-                onChange={(value) => {
-                  const updated = [
-                    ...mergedData.gifts,
-                  ];
-
-                  updated[index] = {
-                    ...gift,
-                    bank: value,
-                  };
-
-                  onSave({
-                    gifts: updated,
-                  });
-                }}
-              />
-
-              <FieldEditor
-                label="Nomor Rekening"
+                label="Nomor HP DANA"
                 value={gift.number}
                 onChange={(value) => {
-                  const updated = [
-                    ...mergedData.gifts,
-                  ];
-
-                  updated[index] = {
-                    ...gift,
-                    number: value,
-                  };
+                  const updated = mergedData.gifts.map(
+                    (item: any, itemIndex: number) => ({
+                      ...item,
+                      bank: "DANA",
+                      ...(itemIndex === index
+                        ? { number: value }
+                        : {}),
+                    })
+                  );
 
                   onSave({
                     gifts: updated,
                   });
                 }}
+                description="Masukkan nomor HP yang terdaftar di akun DANA."
               />
 
               <FieldEditor
@@ -1085,6 +1068,7 @@ function KadoTab({
 
                   updated[index] = {
                     ...gift,
+                    bank: "DANA",
                     holder: value,
                   };
 
@@ -1096,16 +1080,10 @@ function KadoTab({
             </div>
           )
         )}
-      </div>
 
-      <div className="border-t border-gold-500/15 pt-8">
-        <h2 className="font-display text-2xl font-light italic text-ivory">
-          Alamat Kirim Kado
-        </h2>
-
-        <div className="mt-5">
+        <div className="border-t border-gold-500/15 pt-5">
           <FieldEditor
-            label="Alamat Lengkap"
+            label="Alamat Kirim Kado"
             value={mergedData.giftAddress}
             onChange={(value) =>
               onSave({
