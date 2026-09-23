@@ -47,21 +47,6 @@ function CopyButton({ value, label = "Salin Nomor", copiedText = "Tersalin!" }: 
 }
 
 export default function Gift() {
-  const { data, loading } = useWedding();
-
-if (loading) return null;
-
-return (
-  <div>
-    {(data.gifts ?? []).map((gift, index) => (
-      <div key={`${gift.bank}-${index}`}>
-        <p>{gift.bank}</p>
-        <p>{gift.holder}</p>
-        <p>{gift.number}</p>
-      </div>
-    ))}
-  </div>
-);
   const ref = useReveal();
   const { mergedData, t } = useWedding();
 
