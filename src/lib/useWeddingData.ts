@@ -282,12 +282,7 @@ export function useWeddingData(
   const normalizedSlug = normalizeValue(slug);
   const normalizedSettingsId =
     normalizeValue(settingsId);
-
-  const nextSlug = generateSlug(
-  merged.groom?.short || DEFAULT_WEDDING.groom.short,
-  merged.bride?.short || DEFAULT_WEDDING.bride.short
-);
-
+  
   const [data, setData] = useState<WeddingData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
