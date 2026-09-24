@@ -438,7 +438,7 @@ function App() {
    */
   return (
     <WeddingProvider
-      key={publicUserId || "default"}
+      key={invitationSlug || publicUserId || "default"}
       userId={publicUserId}
       slug={invitationSlug}
     >
