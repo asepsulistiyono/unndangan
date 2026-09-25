@@ -393,3 +393,9 @@ body::after {
 .template-wrapper[data-event-style="accordion"] #acara article {
   margin-bottom: 0.5rem;
 }
+
+/* ---------- Perbaikan: paksa kartu Kado selalu terlihat ---------- */
+#kado .reveal {
+  opacity: 1 !important;
+  transform: none !important;
+}
