@@ -67,7 +67,7 @@ export default function Gift() {
           {mergedData.gifts.map((g, i) => (
             <div
               key={g.bank}
-              className={`reveal ${i ? "from-right" : "from-left"} rd-1 group relative overflow-hidden border border-gold-500/20 bg-pine-800/70 p-7 transition-all duration-500 hover:-translate-y-1.5 hover:border-gold-500/60 hover:shadow-[0_24px_60px_rgba(0,0,0,0.4)] sm:p-8`}
+              className="group relative overflow-hidden border border-gold-500/20 bg-pine-800/70 p-7 transition-all duration-500 hover:-translate-y-1.5 hover:border-gold-500/60 hover:shadow-[0_24px_60px_rgba(0,0,0,0.4)] sm:p-8"
             >
               <span
                 aria-hidden="true"
@@ -97,7 +97,7 @@ export default function Gift() {
         </div>
 
         {/* alamat hadiah fisik */}
-        <div className="reveal rd-2 mt-6 flex flex-col items-center gap-5 border border-gold-500/20 bg-pine-800/50 p-7 text-center transition-colors duration-500 hover:border-gold-500/50 sm:flex-row sm:text-left">
+        className="mt-6 flex flex-col items-center gap-5 border border-gold-500/20 bg-pine-800/50 p-7 text-center transition-colors duration-500 hover:border-gold-500/50 sm:flex-row sm:text-left"
           <span className="flex size-12 shrink-0 items-center justify-center rounded-full border border-gold-500/40 text-gold-400">
             <IconPin className="size-5" />
           </span>
