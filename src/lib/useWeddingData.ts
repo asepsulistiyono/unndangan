@@ -4,6 +4,8 @@ import {
   useState,
 } from "react";
 
+import { generateSlug } from "./slug";
+
 import {
   supabase,
   SUPABASE_ENABLED,
@@ -100,6 +102,33 @@ function normalizeValue(
 
   const normalized = value.trim();
   return normalized || null;
+}
+
+/**
+ * Menyamakan slug yang disimpan ke database dengan format
+ * slug undangan: nama mempelai dipisahkan dengan "_dan_".
+ */
+function cleanSlugPart(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function generateSettingsSlug(
+  groomName: string,
+  brideName: string
+): string {
+  const groom =
+    cleanSlugPart(groomName) || "mempelai";
+
+  const bride =
+    cleanSlugPart(brideName) || "mempelai";
+
+  return `${groom}_dan_${bride}`;
 }
 
 function normalizeWeddingData(
@@ -253,7 +282,7 @@ export function useWeddingData(
   const normalizedSlug = normalizeValue(slug);
   const normalizedSettingsId =
     normalizeValue(settingsId);
-
+  
   const [data, setData] = useState<WeddingData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -444,6 +473,13 @@ export function useWeddingData(
     async (patch: WeddingData) => {
       const merged = mergeWeddingPatch(data, patch);
 
+      const nextSlug = generateSettingsSlug(
+        merged.groom?.short ||
+          DEFAULT_WEDDING.groom.short,
+        merged.bride?.short ||
+          DEFAULT_WEDDING.bride.short
+      );
+
       setData(merged);
       setError(null);
 
@@ -460,6 +496,7 @@ export function useWeddingData(
               .from("settings")
               .update({
                 data: merged,
+                slug: nextSlug,
                 updated_at: new Date().toISOString(),
               })
               .eq("id", existingRow.id);
@@ -469,7 +506,8 @@ export function useWeddingData(
             }
 
             console.log(
-              "[WeddingData] Data berhasil disimpan ke Supabase"
+              "[WeddingData] Data berhasil disimpan ke Supabase",
+              { slug: nextSlug }
             );
 
             return;
@@ -487,13 +525,15 @@ export function useWeddingData(
 
           /*
            * Buat baris baru hanya jika belum ada baris untuk user ini.
-           * Kolom slug dibuat otomatis oleh database berdasarkan data.
+           * Jika user memiliki beberapa undangan, findSettingsRow()
+           * akan menghentikan proses agar tidak memilih baris sembarangan.
            */
           if (normalizedUserId) {
             const { error: insertError } = await supabase
               .from("settings")
               .insert({
                 user_id: normalizedUserId,
+                slug: nextSlug,
                 data: merged,
                 updated_at: new Date().toISOString(),
               });
@@ -503,7 +543,8 @@ export function useWeddingData(
             }
 
             console.log(
-              "[WeddingData] Data undangan baru berhasil disimpan"
+              "[WeddingData] Data undangan baru berhasil disimpan",
+              { slug: nextSlug }
             );
 
             return;
